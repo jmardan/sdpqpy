@@ -17,7 +17,7 @@ from abc import ABCMeta, abstractmethod
 from sympy.physics.quantum import Dagger
 from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        generate_variables, bosonic_constraints, flatten, \
-                       fermionic_constraints, SdpRelaxation
+                       fermionic_constraints
 
 
 def write_array(filename, array):
@@ -348,7 +348,7 @@ class SecondQuantizedModel(LatticeModel):
         except:
             #We have to generate from scatch
             time0 = time.time()
-            sdpRelaxation = SdpRelaxation(self._b, verbose=1)
+            sdpRelaxation = RdmHierarchy(self._b, verbose=1)
             if self._level == -1:
                 print("creating custom monomial vectors as level is " +
                       str(self._level))
