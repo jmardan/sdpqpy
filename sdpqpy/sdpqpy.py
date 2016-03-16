@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-This module provides a set of classes to more comfortably work with 
+This module provides a set of classes to more comfortably work with
 quantum lattice models in the context of ncpol2sdpa.
 
 @author: Christian Gogolin, Peter Wittek
@@ -14,8 +14,6 @@ import pickle
 import time
 from abc import ABCMeta, abstractmethod
 
-import sympy
-from sympy import adjoint, conjugate, S, Symbol, Pow, Number, expand, I, Matrix, Lambda
 from sympy.physics.quantum import Dagger
 from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        generate_variables, bosonic_constraints, flatten, \
@@ -48,14 +46,17 @@ class LatticeModel:
     @abstractmethod
     def getSuffix(self):
         """To be overwritten by any subclasses such that it returns a suffix
-        with sufficient information to uniquely identify a concrete instance of the Model including all constrains and paramters.
+        with sufficient information to uniquely identify a concrete instance
+        of the Model including all constrains and paramters.
         """
         pass
 
     @abstractmethod
     def getShortSuffix(self):
         """To be overwritten by any subclasses such that it returns a suffix
-        with sufficient information to uniquely identify the a class of instances of the Model wholse sdpRelaxations can be transformed into each other via process constrains.
+        with sufficient information to uniquely identify the a class of
+        instances of the Model wholse sdpRelaxations can be transformed into
+        each other via process constrains.
         """
         pass
 
@@ -68,9 +69,11 @@ class LatticeModel:
 
     @abstractmethod
     def createMonomials(self):
-        """To be overwritten by any subclasses. Should return a list of lists of polynomials in the operator algebra, each corresponding to a block in the moment matrix."""
+        """To be overwritten by any subclasses. Should return a list of
+        lists of polynomials in the operator algebra, each corresponding to a
+        block in the moment matrix."""
         pass
-    
+
     @abstractmethod
     def createHamiltonian(self):
         """To be overwritten by any subclasses. Should return the Hamiltonian
@@ -85,41 +88,52 @@ class LatticeModel:
 
     # @abstractmethod
     # def pickleFile(self):
-    #     """To be overwritten by any subclasses. Should return a suitable path to which the SDP is pickled and/or loaded.
+    #     """To be overwritten by any subclasses. Should return a suitable
+    #     path to which the SDP is pickled and/or loaded.
     #     """
     #     pass
-    
+
     def pickleSdp(self, sdpRelaxation):
-        """Pickles the sdpRelaxation. If the sdpRelaxation is still unsolved is writes to a path derived from getShortSuffix() if it is a complete instance including constrains and a solution it writes to a path derived from getSuffix().
+        """Pickles the sdpRelaxation. If the sdpRelaxation is still unsolved
+        is writes to a path derived from getShortSuffix() if it is a complete
+        instance including constrains and a solution it writes to a path
+        derived from getSuffix().
         """
         if self._outputDir is not None:
             if not os.path.isdir(self._outputDir):
                 os.mkdir(self._outputDir)
 
             if sdpRelaxation.status == "unsolved":
-                with open(self._outputDir + "/" +"sdpRelaxation" + self.getShortSuffix() + ".pickle", 'wb') as handle:
+                with open(self._outputDir + "/" +"sdpRelaxation" +
+                          self.getShortSuffix() + ".pickle", 'wb') as handle:
                     pickle.dump(sdpRelaxation, handle)
-            else: 
-                with open(self._outputDir + "/" +"sdpRelaxation" + self.getSuffix() + ".pickle", 'wb') as handle:
+            else:
+                with open(self._outputDir + "/" +"sdpRelaxation" +
+                          self.getSuffix() + ".pickle", 'wb') as handle:
                     pickle.dump(sdpRelaxation, handle)
-                
+
     def loadSdp(self):
-        """Tries to load an SDP, first it tries to find an already solved instance stored under a path derived from getSuffix(), if this fials it tries to load a more general instance stored under a path derived from getShortSuffix().
+        """Tries to load an SDP, first it tries to find an already solved
+        instance stored under a path derived from getSuffix(), if this fails
+        it tries to load a more general instance stored under a path derived
+        from getShortSuffix().
         """
-        try: 
-            with open(self._outputDir + "/" +"sdpRelaxation" + self.getSuffix() + ".pickle", 'rb') as handle:
+        try:
+            with open(self._outputDir + "/" +"sdpRelaxation" +
+                      self.getSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
         except:
-            with open(self._outputDir + "/" +"sdpRelaxation" + self.getShortSuffix() + ".pickle", 'rb') as handle:
+            with open(self._outputDir + "/" +"sdpRelaxation" +
+                      self.getShortSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
-    
+
     def getSubstitutions(self):
         """Cached getter mehtod that calls createSubsitutions() if necessary.
         """
         if self._substitutions is None:
             self._substitutions = self.createSubstitutions()
         return self._substitutions
-                
+
     def getSdp(self):
         """Cached getter method that calls createSdp() if necessary.
         """
@@ -139,11 +153,11 @@ class LatticeModel:
 
     def invalidateSolution(self):
         """Invalidates the stored solution. This function is mainly for
-        intermal use and is caled for example when the paramters of the system 
+        intermal use and is caled for example when the paramters of the system
         are changed.
         """
         if self.__sdpRelaxation is not None:
-           self.__sdpRelaxation.status = "unsolved"
+            self.__sdpRelaxation.status = "unsolved"
 
     def invalidateSdp(self):
         """Deletes the SDP and its solution (if present) so that it is updated
@@ -157,7 +171,7 @@ class LatticeModel:
         self.invalidateSolution()
 
     def getXMat(self):
-        """Returns the moment matrix that was the result of solving the 
+        """Returns the moment matrix that was the result of solving the
         specified SDP. If necessary the SDP is solved first.
         """
         if self.__sdpRelaxation is None or self.__sdpRelaxation.x_mat is None:
@@ -165,7 +179,7 @@ class LatticeModel:
         return self.__sdpRelaxation.x_mat
 
     def getYMat(self):
-        """Returns the moment matrix that was the result of solving the 
+        """Returns the moment matrix that was the result of solving the
         specified SDP. If necessary the SDP is solved first.
         """
         if self.__sdpRelaxation is None or self.__sdpRelaxation.y_mat is None:
@@ -187,11 +201,11 @@ class LatticeModel:
         return self.__sdpRelaxation.dual
 
     def getGap(self):
-        """Returns the gap between the primal and the dual solution. If 
+        """Returns the gap between the primal and the dual solution. If
         necessary the SDP is solved first.
         """
         return self.getPrimal() - self.getDual()
-    
+
     def getHamiltonian(self):
         """Cached getter mehtod that calls createHamiltonian() if necessary.
         """
@@ -207,23 +221,24 @@ class LatticeModel:
         self.__hamiltonian = None
 
     def solve(self):
-        """Genrates and solves the SDP representing the specified model. It first
-        tries to load an apropriate possibly already solved SDP from a picke file in
-        self._outputDir. If this fails if calls getSdp() and then soves it.
+        """Genrates and solves the SDP representing the specified model. It
+        first tries to load an apropriate possibly already solved SDP from a
+        picke file in self._outputDir. If this fails if calls getSdp() and
+        then soves it.
         """
-        self.getSdp()# sets self.__sdpRelaxation
+        self.getSdp()  # sets self.__sdpRelaxation
 
         if self.__sdpRelaxation.status == "unsolved":
-        
+
             self.__sdpRelaxation.set_objective(self.getHamiltonian())
-            
+
             print('solving SDP with '+str(self._solver))
             time0 = time.time()
             self.__sdpRelaxation.solve(solver=self._solver)
             print("SDP solved in", time.time()-time0, "seconds")
-            
+
             self.pickleSdp(self.__sdpRelaxation)
-            
+
     def getEnergy(self):
         """Returns the energy (primal of the SDP) of the system.
         """
@@ -257,7 +272,8 @@ class SecondQuantizedModel(LatticeModel):
                  periodic, window_length):
         LatticeModel.__init__(self, lattice_length, lattice_width, solver,
                               outputDir)
-        self._b = generate_variables('b', lattice_length * lattice_width, commutative=False)
+        self._b = generate_variables('b', lattice_length * lattice_width,
+                                     commutative=False)
         self._level = -1
         self._periodic = periodic
         self.nmax = None
@@ -270,7 +286,7 @@ class SecondQuantizedModel(LatticeModel):
             self.window_length = window_length
 
     def createSdp(self, outdatedSdpRelaxation=None):
-        """Retuns an appropriate SDP representing a relaxation of the specified 
+        """Retuns an appropriate SDP representing a relaxation of the specified
         Hamiltonian problem. It first tries to load a pickled SDP.
         If this fails it generates a new SDP.
         """
@@ -279,8 +295,10 @@ class SecondQuantizedModel(LatticeModel):
               (self._lattice_length, self._lattice_width))
         try:
             sdpRelaxation = self.loadSdp()
-            if sdpRelaxation is not None and sdpRelaxation.status != "unsolved":
-            #We assume that we got a solved instance with all paramters correctly set and return that
+            if sdpRelaxation is not None and \
+                    sdpRelaxation.status != "unsolved":
+                # We assume that we got a solved instance with all paramters
+                # correctly set and return that
                 print('succesfully loaded a solved SDP')
                 return sdpRelaxation
             else:
@@ -289,21 +307,23 @@ class SecondQuantizedModel(LatticeModel):
             print('no pickled SDP found, generating SDP')
 
         if sdpRelaxation is None:
-            sdpRelaxation = outdatedSdpRelaxation  
+            sdpRelaxation = outdatedSdpRelaxation
 
         equalities = []
         inequalities = []
-        momentinequalities = []                
+        momentinequalities = []
         if self.localNmax is not None:
             inequalities.extend(self.localNmax-Dagger(br)*br
                                 for br in self._b)
         if self.n is not None:
-            momentinequalities.append(self.n-sum(Dagger(br)*br for br in self._b))
-            momentinequalities.append(sum(Dagger(br)*br for br in self._b)-self.n)
+            momentinequalities.append(self.n-sum(Dagger(br)*br
+                                                 for br in self._b))
+            momentinequalities.append(sum(Dagger(br)*br
+                                          for br in self._b)-self.n)
 
             for fr in self._b:
-                #momentinequalities.append((fr*self.n-fr*sum(Dagger(br)*br for br in self._b)))
-                #momentinequalities.append((Dagger(fr)*sum(Dagger(br)*br for br in self._b)-Dagger(fr)*self.n))
+                # momentinequalities.append((fr*self.n-fr*sum(Dagger(br)*br for br in self._b)))
+                # momentinequalities.append((Dagger(fr)*sum(Dagger(br)*br for br in self._b)-Dagger(fr)*self.n))
                 op1 = Dagger(fr)*fr
                 op2 = fr*Dagger(fr)
                 momentinequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
@@ -311,14 +331,15 @@ class SecondQuantizedModel(LatticeModel):
                 momentinequalities.append((op2*self.n-op2*sum(Dagger(br)*br for br in self._b)))
                 momentinequalities.append((op2*sum(Dagger(br)*br for br in self._b)-op2*self.n))
 
-            
+
         if self.nmax is not None:
             momentinequalities.append(self.nmax-sum(Dagger(br)*br for br in self._b))
         if self.nmin is not None:
             momentinequalities.append(sum(Dagger(br)*br for br in self._b)-self.nmin)
 
         try:
-            # Try to recycle the outdated or loaded SDP this only works if if sdpRelaxation is not None and the number of constaints matches
+            # Try to recycle the outdated or loaded SDP this only works if if
+            # sdpRelaxation is not None and the number of constaints matches
             print("trying to recycle an old solution")
             sdpRelaxation.process_constraints(equalities=equalities,
                                               inequalities=inequalities,
@@ -336,7 +357,7 @@ class SecondQuantizedModel(LatticeModel):
                 print("generating a standard SDP with level " +
                       str(self._level))
                 monomials = None
-                
+
             sdpRelaxation.get_relaxation(self._level,
                                          equalities=equalities,
                                          inequalities=inequalities,
@@ -347,16 +368,16 @@ class SecondQuantizedModel(LatticeModel):
                   (self._lattice_length, self._lattice_width,
                    (time.time()-time0)))
 
-        return sdpRelaxation                          
+        return sdpRelaxation
 
     def setLevel(self, level):
         """Sets the level of the relaxation and thereby prevents generation of
         the monomials with the customizable createMonomials() method."""
         self.invalidateSdp()
         self._level = level
-        
+
     def getDensityDensityCorrelations(self):
-        """Returns the density density correlation function. If necessary 
+        """Returns the density density correlation function. If necessary
         soles the SDP first.
         """
         if self._lattice_width != 1:
@@ -438,13 +459,13 @@ class SecondQuantizedModel(LatticeModel):
         soles the SDP first.
         """
         if self.getSdp() is None or self.getSdp().status == "unsolved":
-            self.solve()        
+            self.solve()
         return self.getSdp()[operator]
 
     def getPhysicalQuantities(self):
-        """Returns a dictionaly of names and corresponding functions of all physical 
-        quantitis that are to be written in writeData(). This should be overwritten
-        in subclasses.
+        """Returns a dictionaly of names and corresponding functions of all
+        physical quantities that are to be written in writeData(). This should
+        be overwritten in subclasses.
         """
         return {"/gtwo": self.gtwo(),
                 "/density_density_corr": self.getDensityDensityCorrelations(),
@@ -454,7 +475,7 @@ class SecondQuantizedModel(LatticeModel):
                 "/dual": [self.getPrimal()]}
 
     def writeData(self):
-        """Writes the values of all physical quantities returned by 
+        """Writes the values of all physical quantities returned by
         getPhysicalQuantities() to the respective files.
         """
         for key, data in iter(self.getPhysicalQuantities().items()):
@@ -470,7 +491,7 @@ class SecondQuantizedModel(LatticeModel):
             suffix += "_window=" + str(self.window_length)
         suffix += "_level="+str(self._level)
         return suffix
-                          
+
     def setConstraints(self, **kwargs):
         """Sets the specifide constaints. If a constraint was not previously
         set or the value of it was changed it invalidates the cached SDP.
@@ -581,6 +602,7 @@ class BoseHubbardModel(SecondQuantizedModel):
             suffix += "_window=" + str(self.window_length)
         suffix += "_level="+str(self._level)
         return suffix
+
 
 class FermiHubbardModel(SecondQuantizedModel):
     __metaclass__ = ABCMeta
