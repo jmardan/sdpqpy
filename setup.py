@@ -1,5 +1,5 @@
 """
-sdpqpy: Solve quantum ground state problems with semi-definte programming.
+sdpqpy: Solve quantum ground state problems with semi-definite programming.
 """
 
 try:
@@ -18,7 +18,9 @@ setup(
         'semidefinite programming',
         'relaxation',
         'quantum',
-        'ground state'
+        'ground state',
+        'second quantization',
+        'fermions'
     ],
     license='LICENSE',
     description='Semi-definite programming for approximately solving quantum ground state problems',
@@ -32,9 +34,7 @@ setup(
         'Intended Audience :: Science/Research',
         'Programming Language :: Python'
     ],
-#    install_requires=[
-#        "sympy >= 0.7.2",
-#        "numpy"
-#    ],
-#    test_suite="tests"
+    install_requires=[
+        "ncpol2sdpa >= 1.10.3",
+    ]
 )

@@ -1,3 +1,4 @@
-include *.py
+include sdpqpy/*.py
 include LICENSE
 include README.rst
+include setup.py
