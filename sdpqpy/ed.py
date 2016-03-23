@@ -21,7 +21,7 @@ from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        generate_variables, bosonic_constraints, flatten, \
                        fermionic_constraints, SdpRelaxation
 
-
+import multiprocessing
 import numpy as np
 import scipy
 import itertools as it
@@ -388,7 +388,13 @@ class EDFermiHubbardModel():
         L = self.getLength()
         print("generating monomial vector of length "+str(len(flatten(monomials))))
         time0 = time.time()
-        self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
+        #self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
+
+        pool = multiprocessing.Pool(processes=cpus)
+        def monomialmatrix(monomial):
+            return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
+        self.monomialvector = pool.map(monomialmatrix, flatten(monomials))
+        
         print("done in ", time.time()-time0, "seconds")
 
         #print("self.monomialvector")
