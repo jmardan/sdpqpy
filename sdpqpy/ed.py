@@ -236,19 +236,38 @@ class EDFermiHubbardModel():
     
     def solve(self):
         H = self.getHamiltonian()
-        if H.shape == (1,1):
-            self.energy, self.groundstate = H[0,0], [1]
-            
-        else:
-            try:
-                time0 = time.time()
-                self.energy, self.groundstate = eigsh(H, 1, which="SA")
-                print("Hamiltonian ground state found in", time.time()-time0, "seconds")
-            except:
-                print("paramters="+self.getSuffix())
-                print("ERROR finding the ground state of H="+str(H))
-                self.energy, self.groundstate = -1, [1/self.dimh] * self.dimh
-                raise
+
+        try:
+            with open(self._outputDir + "/" +"edEnergy" +
+                      self.getSuffix() + ".pickle", 'rb') as handle:
+                return pickle.load(handle)
+            with open(self._outputDir + "/" +"edGreoundState" +
+                      self.getSuffix() + ".pickle", 'rb') as handle:
+                return pickle.load(handle)
+        except:
+            if H.shape == (1,1):
+                self.energy, self.groundstate = H[0,0], [1]
+            else:
+                try:
+                    time0 = time.time()
+                    self.energy, self.groundstate = eigsh(H, 1, which="SA")
+                    print("Hamiltonian ground state found in", time.time()-time0, "seconds")
+
+                    if self._outputDir is not None:
+                        if not os.path.isdir(self._outputDir):
+                            os.mkdir(self._outputDir)
+                            with open(self._outputDir + "/" +"edEnergy" +
+                                      self.getShortSuffix() + ".pickle", 'wb') as handle:
+                                pickle.dump(self.energy, handle)
+                                with open(self._outputDir + "/" +"edGreoundState" +
+                                          self.getShortSuffix() + ".pickle", 'wb') as handle:
+                                    pickle.dump(self.groundstate, handle)
+                    
+                except:
+                    print("paramters="+self.getSuffix())
+                    print("ERROR finding the ground state of H="+str(H))
+                    self.energy, self.groundstate = -1, [1/self.dimh] * self.dimh
+                    raise
         
     def getEnergy(self):
         if self.energy is None:
