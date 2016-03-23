@@ -390,7 +390,7 @@ class EDFermiHubbardModel():
         time0 = time.time()
         #self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
 
-        pool = multiprocessing.Pool(processes=cpus)
+        pool = multiprocessing.Pool()
         def monomialmatrix(monomial):
             return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
         self.monomialvector = pool.map(monomialmatrix, flatten(monomials))
