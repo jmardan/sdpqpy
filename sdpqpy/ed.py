@@ -22,6 +22,7 @@ from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        fermionic_constraints, SdpRelaxation
 
 import multiprocessing
+from functools import partial
 import numpy as np
 import scipy
 import itertools as it
@@ -311,7 +312,11 @@ class EDFermiHubbardModel():
         
         print("generating output")
         time0 = time.time()
-        output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
+        # the following is roughly equivalent to
+        # output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
+        pool = multiprocessing.Pool()
+        m = pool.map(partial(npdotinverted, upliftedgroundstate), self.getMonomialVector(old, new, monomials))
+        output = np.reshape(pool.map(npstardot, it.product(m, repeat=2)),(-1,len(m)))
         print("done in ", time.time()-time0, "seconds")
         return np.array(output, dtype=float)
 
@@ -388,17 +393,19 @@ class EDFermiHubbardModel():
         L = self.getLength()
         print("generating monomial vector of length "+str(len(flatten(monomials))))
         time0 = time.time()
-        #self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
-
+        # the following is roughly equivalent to 
+        # self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
+        # but computes the elements of self.monomialvector in parallel
         pool = multiprocessing.Pool()
-        def monomialmatrix(monomial):
-            return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
-        self.monomialvector = pool.map(monomialmatrix, flatten(monomials))
-        
+        self.monomialvector = pool.map(partial(monomialmatrix, old=old, new=new), flatten(monomials))
         print("done in ", time.time()-time0, "seconds")
 
-        #print("self.monomialvector")
-        #print(self.monomialvector)
-        #print("self.monomialvector[1]")
-        #print(self.monomialvector[1])
-        #exit()
+def monomialmatrix(monomial, old=None, new=None):
+    return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
+
+
+def npdotinverted(b, a):
+    return np.dot(a,b)
+
+def npstardot(ab):
+    return np.dot(ab[0],ab[1])
