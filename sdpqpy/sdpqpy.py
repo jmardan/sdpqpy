@@ -122,6 +122,8 @@ class LatticeModel:
             with open(self._outputDir + "/" +"sdpRelaxation" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
+        except (KeyboardInterrupt, SystemExit):
+            raise 
         except:
             with open(self._outputDir + "/" +"sdpRelaxation" +
                       self.getShortSuffix() + ".pickle", 'rb') as handle:
@@ -303,6 +305,8 @@ class SecondQuantizedModel(LatticeModel):
                 return sdpRelaxation
             else:
                 print('succesfully loaded an unsolved SDP')
+        except (KeyboardInterrupt, SystemExit):
+            raise 
         except (IOError, EOFError):
             print('no pickled SDP found, generating SDP')
 
@@ -345,6 +349,8 @@ class SecondQuantizedModel(LatticeModel):
                                               inequalities=inequalities,
                                               momentinequalities=momentinequalities)
             print("succesfully recycled an old solution")
+        except (KeyboardInterrupt, SystemExit):
+            raise 
         except:
             #We have to generate from scatch
             time0 = time.time()

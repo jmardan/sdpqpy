@@ -58,7 +58,8 @@ class EDFermiHubbardModel():
         self.annihiliationOperators = None
         self.monomialvector = None
         self.hdictfull = None
-
+        self._pool = multiprocessing.Pool()
+        
     def setParameters(self, **kwargs):
         if "mu" in kwargs:
             self.mu = kwargs.get("mu")
@@ -245,6 +246,8 @@ class EDFermiHubbardModel():
             with open(self._outputDir + "/" +"edGreoundState" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except:
             if H.shape == (1,1):
                 self.energy, self.groundstate = H[0,0], [1]
@@ -263,7 +266,8 @@ class EDFermiHubbardModel():
                                 with open(self._outputDir + "/" +"edGreoundState" +
                                           self.getShortSuffix() + ".pickle", 'wb') as handle:
                                     pickle.dump(self.groundstate, handle)
-                    
+                except (KeyboardInterrupt, SystemExit):
+                    raise 
                 except:
                     print("paramters="+self.getSuffix())
                     print("ERROR finding the ground state of H="+str(H))
@@ -310,13 +314,25 @@ class EDFermiHubbardModel():
         new = self.getAnnihiliationOperators()
         new.append(Dagger)
         
-        print("generating output")
+        print("generating xmat entries")
         time0 = time.time()
         # the following is roughly equivalent to
         # output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
-        pool = multiprocessing.Pool()
-        m = pool.map(partial(npdotinverted, upliftedgroundstate), self.getMonomialVector(old, new, monomials))
-        output = np.reshape(pool.map(npstardot, it.product(m, repeat=2)),(-1,len(m)))
+        monomialvec = self.getMonomialVector(old, new, monomials)
+        m = self._pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
+        
+        #output = np.reshape(self._pool.map_async(npstardot, it.product(m, repeat=2)).get(0xFFFF),(-1,len(m)))
+
+        output = np.empty([len(m), len(m)])
+        for i, out in enumerate(self._pool.imap(npstardot, it.product(m, repeat=2)), 1):
+            row = (i-1) % len(m)
+            col = (i-1 - row)/len(m)
+            #print("row="+str(row)+" col="+str(col))
+            if row > col:
+                continue
+            output[row, col] = output[col, row] = out
+            print("\rprocessed "+str(i)+" xmat entries of "+len(m)*len(m), end="")
+        
         print("done in ", time.time()-time0, "seconds")
         return np.array(output, dtype=float)
 
@@ -396,10 +412,16 @@ class EDFermiHubbardModel():
         # the following is roughly equivalent to 
         # self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
         # but computes the elements of self.monomialvector in parallel
-        pool = multiprocessing.Pool()
-        self.monomialvector = pool.map(partial(monomialmatrix, old=old, new=new), flatten(monomials))
-        print("done in ", time.time()-time0, "seconds")
 
+        #self.monomialvector = self._pool.map(partial(monomialmatrix, old=old, new=new), flatten(monomials))
+        self.monomialvector = []
+        for i, monom in enumerate(self._pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials)), 1):
+            self.monomialvector.append(monom)
+            print("processed "+str(i)+" monomials\033[F")
+
+        
+        print("done in ", time.time()-time0, "seconds")
+        
 def monomialmatrix(monomial, old=None, new=None):
     return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
 
