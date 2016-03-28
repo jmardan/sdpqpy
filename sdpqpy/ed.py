@@ -159,30 +159,10 @@ class EDFermiHubbardModel():
                 newvec[k] = 1
                 return tuple(newvec)
             
-        L = self.getLength()
-        
-        # if self.n is None:
-        #     #iteratros can only be used once in python, so we rather define a generating function...
-        #     def h(): return it.product([0, 1], repeat = 2*L)
-        #     dimh = int(pow(2*L, 2))
-        # else:
-        #     #taken from http://stackoverflow.com/questions/6284396/permutations-with-unique-values
-        #     def unique_permutations(elements):
-        #         if len(elements) == 1:
-        #             yield (elements[0],)
-        #         else:
-        #             unique_elements = set(elements)
-        #             for first_element in unique_elements:
-        #                 remaining_elements = list(elements)
-        #                 remaining_elements.remove(first_element)
-        #                 for sub_permutation in unique_permutations(remaining_elements):
-        #                     yield (first_element,) + sub_permutation
-            
-        #     #iteratros can only be used once in python, so we rather define a generating function...
-        #     def h(): return unique_permutations(list(it.chain(it.repeat(0, 2*L - int(self.n)), it.repeat(1, int(self.n)))))
-        #     dimh = int(scipy.special.binom(2*L, self.n))
+        L = self.getLength()        
 
-        #reverse lookup table for the elements of the hilbet space to efficiently generate the off diagonal part of the Hamiltonian
+        #reverse lookup table for the elements of the hilbet space to efficiently
+        #generate the off diagonal part of the Hamiltonian
         hdict = {}
         for row, vec in enumerate(self.getHilbertSpace()):
             hdict[vec] = row
@@ -210,7 +190,6 @@ class EDFermiHubbardModel():
                 k1 = j1+1 % L
                 j2 = j1+L
                 k2 = k1 + L
-                #print('hop('+str(j1)+','+str(k1)+','+str(vec)+')='+str(hop(j1,k1,vec)))
                 newvec = hop(j1,k1,vec)
                 if newvec is not None:
                     col = hdict[newvec]
@@ -220,9 +199,7 @@ class EDFermiHubbardModel():
                     col = hdict[newvec]
                     H[row,col] = H[col,row] = -self.t
             
-        #print('H='+str(H.toarray()))
         print("Hilbertspace and Hamiltonian generated in", time.time()-time0, "seconds")
-        #print(str(H.toarray()))
         return H
 
     def getSize(self):
@@ -286,11 +263,12 @@ class EDFermiHubbardModel():
         #print('Mdiag='+str(Mdiag)+" self.groundstate="+str(self.groundstate))
         return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
 
-
     def expectationValue(self, operator):
         """Returns the expectation value of the given operator.
         """
-        return 
+        if self.groundstate is None:
+            self.solve()
+        return np.vdot(self.groundstate, np.dot(operator,self.groundstate))
 
     def getXMat(self, variables, monomials):
         L = self.getLength()
@@ -321,29 +299,16 @@ class EDFermiHubbardModel():
         monomialvec = self.getMonomialVector(old, new, monomials)
         m = self._pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
         
-        #output = np.reshape(self._pool.map_async(npstardot, it.product(m, repeat=2)).get(0xFFFF),(-1,len(m)))
-
         output = np.empty([len(m), len(m)])
         for i, out in enumerate(self._pool.imap(npstardot, it.product(m, repeat=2)), 1):
             row = (i-1) % len(m)
             col = (i-1 - row)/len(m)
-            #print("row="+str(row)+" col="+str(col))
-            if row > col:
-                continue
-            output[row, col] = output[col, row] = out
-            print("\rprocessed "+str(i)+" xmat entries of "+len(m)*len(m), end="")
+            if row >= col:
+                output[row, col] = output[col, row] = out
+            print("\rprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m)), end="")
         
         print("done in ", time.time()-time0, "seconds")
         return np.array(output, dtype=float)
-
-        # mon = self.getMonomialVector(old, new, monomials)
-        # def f(i, j):
-        #     return np.vdot(np.dot(mon[i],upliftedgroundstate), np.dot(mon[j],upliftedgroundstate))
-        # nparray = np.fromfunction(f, (len(mon), len(mon)), dtype=int)
-        # print("done in ", time.time()-time0, "seconds")
-        # return nparray
-    
-        #return np.fromiter(            ([(np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)), float, count=len(new)] for m2 in self.getMonomialVector(old, new, monomials))            , float, count=len(new))
         
     def getSuffix(self):
         suffix = "_lat=" + str(self._lattice_length) + "x" + \
@@ -365,7 +330,6 @@ class EDFermiHubbardModel():
         suffix += "_level="+str(self._level)
         return suffix
 
-
     def getAnnihiliationOperators(self):
         L = self.getLength()
         if self.annihiliationOperators is None:
@@ -375,7 +339,6 @@ class EDFermiHubbardModel():
     
     def createAnnihiliationOperator(self, j):
         L = self.getLength()
-        #a = sps.dok_matrix((int(pow(2, 2*L)), int(pow(2, 2*L))), dtype=np.float32)
         a = sympy.zeros(int(pow(2, 2*L)), int(pow(2, 2*L)))
         for row, vec in enumerate(it.product([0, 1], repeat = 2*L)):
             if vec[j] == 1:
@@ -383,7 +346,6 @@ class EDFermiHubbardModel():
                 newvec[j] = 0
                 col = self.getHdictFull()[tuple(newvec)]
                 a[col,row] = pow(-1, sum(vec[0:j]))
-        #return Matrix(a.toarray())
         return a
 
     def getHdictFull(self):
