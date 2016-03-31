@@ -199,7 +199,7 @@ class EDFermiHubbardModel():
                     col = hdict[newvec]
                     H[row,col] = H[col,row] = -self.t
             
-        print("Hilbertspace and Hamiltonian generated in", time.time()-time0, "seconds")
+        print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
         return H
 
     def getSize(self):
@@ -223,6 +223,7 @@ class EDFermiHubbardModel():
             with open(self._outputDir + "/" +"edGreoundState" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
+            print("Hamiltonian and ground state energy succesfully unpickled")
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -232,16 +233,16 @@ class EDFermiHubbardModel():
                 try:
                     time0 = time.time()
                     self.energy, self.groundstate = eigsh(H, 1, which="SA")
-                    print("Hamiltonian ground state found in", time.time()-time0, "seconds")
+                    print("Ground state of Hamiltonian of dimension "+str(len(H))+" found in", time.time()-time0, "seconds")
 
                     if self._outputDir is not None:
                         if not os.path.isdir(self._outputDir):
                             os.mkdir(self._outputDir)
                             with open(self._outputDir + "/" +"edEnergy" +
-                                      self.getShortSuffix() + ".pickle", 'wb') as handle:
+                                      self.getSuffix() + ".pickle", 'wb') as handle:
                                 pickle.dump(self.energy, handle)
                                 with open(self._outputDir + "/" +"edGreoundState" +
-                                          self.getShortSuffix() + ".pickle", 'wb') as handle:
+                                          self.getSuffix() + ".pickle", 'wb') as handle:
                                     pickle.dump(self.groundstate, handle)
                 except (KeyboardInterrupt, SystemExit):
                     raise 
@@ -327,6 +328,8 @@ class EDFermiHubbardModel():
             suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self._lattice_length:
             suffix += "_window=" + str(self.window_length)
+        if self.mu != 0:
+            suffix += "_mu=" + str(self.mu)
         suffix += "_level="+str(self._level)
         return suffix
 
