@@ -238,12 +238,12 @@ class EDFermiHubbardModel():
                     if self._outputDir is not None:
                         if not os.path.isdir(self._outputDir):
                             os.mkdir(self._outputDir)
-                            with open(self._outputDir + "/" +"edEnergy" +
-                                      self.getSuffix() + ".pickle", 'wb') as handle:
-                                pickle.dump(self.energy, handle)
-                                with open(self._outputDir + "/" +"edGreoundState" +
-                                          self.getSuffix() + ".pickle", 'wb') as handle:
-                                    pickle.dump(self.groundstate, handle)
+                        with open(self._outputDir + "/" +"edEnergy" +
+                                  self.getSuffix() + ".pickle", 'wb') as handle:
+                            pickle.dump(self.energy, handle)
+                        with open(self._outputDir + "/" +"edGreoundState" +
+                                  self.getSuffix() + ".pickle", 'wb') as handle:
+                            pickle.dump(self.groundstate, handle)
                 except (KeyboardInterrupt, SystemExit):
                     raise 
                 except:
