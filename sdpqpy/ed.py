@@ -314,12 +314,12 @@ class EDFermiHubbardModel():
             col = (i-1 - row)/len(m)
             if row >= col:
                 output[row, col] = output[col, row] = out
-            sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" ")
+            sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" in "+str(time.time()-time0)+" seconds ")
             sys.stdout.flush()
 
         pool2.close()
         pool2.join()
-        print("done in ", time.time()-time0, "seconds")
+        print("done")
         return np.array(output, dtype=float)
         
     def getSuffix(self):
@@ -396,11 +396,11 @@ class EDFermiHubbardModel():
         monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
         for i, monom in enumerate(monomials, 1):
             self.monomialvector.append(monom)
-            sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials ")
+            sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
             sys.stdout.flush()
         pool.close()
         pool.join()
-        print("done in ", time.time()-time0, "seconds")
+        print("done")
         
 def monomialmatrix(monomial, old=None, new=None):
     return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
