@@ -219,10 +219,10 @@ class EDFermiHubbardModel():
         try:
             with open(self._outputDir + "/" +"edEnergy" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
-                return pickle.load(handle)
+                self.energy = pickle.load(handle)
             with open(self._outputDir + "/" +"edGreoundState" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
-                return pickle.load(handle)
+                self.groundstate = pickle.load(handle)
             print("Hamiltonian and ground state energy succesfully unpickled")
         except (KeyboardInterrupt, SystemExit):
             raise
