@@ -21,7 +21,10 @@ from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        generate_variables, bosonic_constraints, flatten, \
                        fermionic_constraints, SdpRelaxation
 
-import multiprocessing
+import multiprocessing, logging
+mpl = multiprocessing.log_to_stderr()
+mpl.setLevel(logging.INFO)
+
 from functools import partial
 import numpy as np
 import scipy
@@ -306,7 +309,7 @@ class EDFermiHubbardModel():
             col = (i-1 - row)/len(m)
             if row >= col:
                 output[row, col] = output[col, row] = out
-            print("\rprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m)), end="")
+            print("\rprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" ", end="")
         
         print("done in ", time.time()-time0, "seconds")
         return np.array(output, dtype=float)
