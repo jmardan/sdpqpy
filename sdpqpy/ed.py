@@ -6,6 +6,7 @@ obtained from the SDP numerics.
 @author: Christian Gogolin, Peter Wittek
 """
 from __future__ import print_function, division
+import sys
 import cmath
 import csv
 import math
@@ -22,8 +23,8 @@ from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        fermionic_constraints, SdpRelaxation
 
 import multiprocessing, logging
-#mpl = multiprocessing.log_to_stderr()
-#mpl.setLevel(logging.INFO)
+# mpl = multiprocessing.log_to_stderr()
+# mpl.setLevel(logging.INFO)
 
 from functools import partial
 import numpy as np
@@ -300,7 +301,6 @@ class EDFermiHubbardModel():
         # the following is roughly equivalent to
         # output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
         monomialvec = self.getMonomialVector(old, new, monomials)
-
         pool = multiprocessing.Pool()
         m = pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
         pool.close()
@@ -314,7 +314,9 @@ class EDFermiHubbardModel():
             col = (i-1 - row)/len(m)
             if row >= col:
                 output[row, col] = output[col, row] = out
-            print("\rprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" ", end="")
+            sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" ")
+            sys.stdout.flush()
+
         pool2.close()
         pool2.join()
         print("done in ", time.time()-time0, "seconds")
@@ -381,7 +383,8 @@ class EDFermiHubbardModel():
 
     def createMonomialVector(self, old, new, monomials):
         L = self.getLength()
-        print("generating monomial vector of length "+str(len(flatten(monomials))))
+        monomialsLength = len(flatten(monomials))
+        print(" generating monomial vector")
         time0 = time.time()
         # the following is roughly equivalent to 
         # self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
@@ -393,7 +396,8 @@ class EDFermiHubbardModel():
         monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
         for i, monom in enumerate(monomials, 1):
             self.monomialvector.append(monom)
-            print("\rprocessed "+str(i)+" monomials", end="")
+            sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials ")
+            sys.stdout.flush()
         pool.close()
         pool.join()
         print("done in ", time.time()-time0, "seconds")
