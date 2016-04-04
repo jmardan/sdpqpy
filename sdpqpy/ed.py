@@ -61,7 +61,7 @@ class EDFermiHubbardModel():
         self.annihiliationOperators = None
         self.monomialvector = None
         self.hdictfull = None
-        self._pool = multiprocessing.Pool()
+#        self._pool = multiprocessing.Pool()
         
     def setParameters(self, **kwargs):
         if "mu" in kwargs:
@@ -301,10 +301,18 @@ class EDFermiHubbardModel():
         # the following is roughly equivalent to
         # output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
         monomialvec = self.getMonomialVector(old, new, monomials)
-        m = self._pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
+
+        pool = multiprocessing.Pool()
+        m = pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
+        pool.close()
+        pool.join()
         
         output = np.empty([len(m), len(m)])
-        for i, out in enumerate(self._pool.imap(npstardot, it.product(m, repeat=2)), 1):
+        pool2 = multiprocessing.Pool()
+        foo = pool2.imap(npstardot, it.product(m, repeat=2))
+        pool2.close()
+        pool2.join()
+        for i, out in enumerate(foo, 1):
             row = (i-1) % len(m)
             col = (i-1 - row)/len(m)
             if row >= col:
@@ -383,7 +391,12 @@ class EDFermiHubbardModel():
 
         #self.monomialvector = self._pool.map(partial(monomialmatrix, old=old, new=new), flatten(monomials))
         self.monomialvector = []
-        for i, monom in enumerate(self._pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials)), 1):
+
+        pool = multiprocessing.Pool()
+        bar = self._pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
+        pool.close()
+        pool.join()
+        for i, monom in enumerate(bar, 1):
             self.monomialvector.append(monom)
             print("processed "+str(i)+" monomials\033[F")
 
