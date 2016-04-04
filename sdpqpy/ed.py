@@ -22,8 +22,8 @@ from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        fermionic_constraints, SdpRelaxation
 
 import multiprocessing, logging
-mpl = multiprocessing.log_to_stderr()
-mpl.setLevel(logging.INFO)
+#mpl = multiprocessing.log_to_stderr()
+#mpl.setLevel(logging.INFO)
 
 from functools import partial
 import numpy as np
@@ -61,7 +61,6 @@ class EDFermiHubbardModel():
         self.annihiliationOperators = None
         self.monomialvector = None
         self.hdictfull = None
-#        self._pool = multiprocessing.Pool()
         
     def setParameters(self, **kwargs):
         if "mu" in kwargs:
@@ -309,16 +308,15 @@ class EDFermiHubbardModel():
         
         output = np.empty([len(m), len(m)])
         pool2 = multiprocessing.Pool()
-        foo = pool2.imap(npstardot, it.product(m, repeat=2))
-        pool2.close()
-        pool2.join()
-        for i, out in enumerate(foo, 1):
+        m2 = pool2.imap(npstardot, it.product(m, repeat=2))
+        for i, out in enumerate(m2, 1):
             row = (i-1) % len(m)
             col = (i-1 - row)/len(m)
             if row >= col:
                 output[row, col] = output[col, row] = out
             print("\rprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" ", end="")
-        
+        pool2.close()
+        pool2.join()
         print("done in ", time.time()-time0, "seconds")
         return np.array(output, dtype=float)
         
@@ -389,23 +387,19 @@ class EDFermiHubbardModel():
         # self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
         # but computes the elements of self.monomialvector in parallel
 
-        #self.monomialvector = self._pool.map(partial(monomialmatrix, old=old, new=new), flatten(monomials))
         self.monomialvector = []
 
         pool = multiprocessing.Pool()
-        bar = pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
+        monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
+        for i, monom in enumerate(monomials, 1):
+            self.monomialvector.append(monom)
+            print("\rprocessed "+str(i)+" monomials", end="")
         pool.close()
         pool.join()
-        for i, monom in enumerate(bar, 1):
-            self.monomialvector.append(monom)
-            print("processed "+str(i)+" monomials\033[F")
-
-        
         print("done in ", time.time()-time0, "seconds")
         
 def monomialmatrix(monomial, old=None, new=None):
     return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
-
 
 def npdotinverted(b, a):
     return np.dot(a,b)
