@@ -393,7 +393,7 @@ class EDFermiHubbardModel():
         self.monomialvector = []
 
         pool = multiprocessing.Pool()
-        bar = self._pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
+        bar = pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
         pool.close()
         pool.join()
         for i, monom in enumerate(bar, 1):
