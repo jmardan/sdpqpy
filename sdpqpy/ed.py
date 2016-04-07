@@ -378,7 +378,14 @@ class EDFermiHubbardModel():
 
     def getMonomialVector(self, old, new, monomials):
         if self.monomialvector is None:
-            self.createMonomialVector(old, new, monomials)
+            try:
+                with open(self._outputDir + "/" +"edMonomialVector" +
+                          self.getSuffix() + ".pickle", 'rb') as handle:
+                    self.monomialvector = pickle.load(handle)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except:           
+                self.createMonomialVector(old, new, monomials)
         return self.monomialvector
 
     def createMonomialVector(self, old, new, monomials):
@@ -400,6 +407,13 @@ class EDFermiHubbardModel():
             sys.stdout.flush()
         pool.close()
         pool.join()
+
+        if self._outputDir is not None:
+            if not os.path.isdir(self._outputDir):
+                os.mkdir(self._outputDir)
+                with open(self._outputDir + "/" +"edMonomialVector" +
+                          self.getSuffix() + ".pickle", 'wb') as handle:
+                    pickle.dump(self.monomialvector, handle)
         print("done")
         
 def monomialmatrix(monomial, old=None, new=None):
