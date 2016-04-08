@@ -34,6 +34,13 @@ from scipy.sparse.linalg import eigsh
 import scipy.sparse as sps
 
 
+def write_array(filename, array):
+    file_ = open(filename, 'w')
+    writer = csv.writer(file_)
+    writer.writerow(array)
+    file_.close()
+    
+
 class EDFermiHubbardModel():
     __metaclass__ = ABCMeta
         
@@ -45,8 +52,10 @@ class EDFermiHubbardModel():
         self._outputDir = outputDir
         self.__hamiltonian = None
         if window_length == 0:
-            self.window_length = lattice_length
+            self.window_length = lattice_length * lattice_width
         else:
+            if self._lattice_width != 1:
+                raise Exception("Windowed models in more than 1D not implemented!")
             self.window_length = window_length
         self.mu, self.t, self.h, self.U = 0, 0, 0, 0
         self.n = None
@@ -187,7 +196,7 @@ class EDFermiHubbardModel():
             else:
                 raise Exception("Not implemented!")
             
-            for j1 in range(V-1):
+            for j1 in range(V):
                 for k1 in get_next_neighbors(j1, lattice_length=self.getLength(), width=self.getWidth(), distance=1, periodic=self._periodic):                
                     j2 = j1+V
                     k2 = k1+V
@@ -429,7 +438,7 @@ class EDFermiHubbardModel():
         return {"/edPrimal": [self.getPrimal()],
                 "/edMagnetization": [self.getMagnetization()]}
 
-    def writeData(which=None):
+    def writeData(self, which=None):
         """Writes the values of all physical quantities returned by
         getPhysicalQuantities() to the respective files.
         """

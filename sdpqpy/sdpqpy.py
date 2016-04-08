@@ -482,7 +482,7 @@ class SecondQuantizedModel(LatticeModel):
                 "/primal": [self.getPrimal()],
                 "/dual": [self.getPrimal()]}
 
-    def writeData(which=None):
+    def writeData(self, which=None):
         """Writes the values of all physical quantities returned by
         getPhysicalQuantities() to the respective files.
         """
@@ -672,10 +672,10 @@ class FermiHubbardModel(SecondQuantizedModel):
 
     def createMonomials(self):
         monomials = []
-        for i in range(self.getLength() - self.window_length + 1):
+        for i in range(self.getSize() - self.window_length + 1):
             window = self._b[i:i+self.window_length]
-            window.extend(self._b[self.getLength()+i:
-                                  self.getLength()+i+self.window_length])
+            window.extend(self._b[self.getSize()+i:
+                                  self.getSize()+i+self.window_length])
             monomials.append([ci for ci in window])
             monomials[-1].extend([Dagger(ci) for ci in window])
             monomials.append([cj*ci for ci in window for cj in window])
