@@ -128,12 +128,12 @@ class EDFermiHubbardModel():
         return self.createHilbertSpace()
     
     def createHilbertSpace(self):
-        L = self.getLength()
+        V = self.getSize()
         if self.n is None:
-            self.dimh = int(pow(2, 2*L))
-            return it.product([0, 1], repeat = 2*L)
+            self.dimh = int(pow(2, 2*V))
+            return it.product([0, 1], repeat = 2*V)
         else:
-            self.dimh = int(scipy.special.binom(2*L, self.n))
+            self.dimh = int(scipy.special.binom(2*V, self.n))
             #taken from http://stackoverflow.com/questions/6284396/permutations-with-unique-values
             def unique_permutations(elements):
                 if len(elements) == 1:
@@ -146,12 +146,10 @@ class EDFermiHubbardModel():
                         for sub_permutation in unique_permutations(remaining_elements):
                             yield (first_element,) + sub_permutation
             
-            return unique_permutations(list(it.chain(it.repeat(0, 2*L - int(self.n)), it.repeat(1, int(self.n)))))
+            return unique_permutations(list(it.chain(it.repeat(0, 2*V - int(self.n)), it.repeat(1, int(self.n)))))
             
     def createHamiltonian(self):
         time0 = time.time()
-        if self._lattice_width != 1:
-            raise Exception("Higher dimension not implemented!")
         
         def hop(j,k,vec):
             if vec[j] == 0 or vec[k] == 1:
@@ -162,7 +160,7 @@ class EDFermiHubbardModel():
                 newvec[k] = 1
                 return tuple(newvec)
             
-        L = self.getLength()        
+        V = self.getSize()        
 
         #reverse lookup table for the elements of the hilbet space to efficiently
         #generate the off diagonal part of the Hamiltonian
@@ -174,8 +172,8 @@ class EDFermiHubbardModel():
 
         #diagonal part
         for row, vec in enumerate(self.getHilbertSpace()):
-            vecu = vec[:L]
-            vecd = vec[L:]
+            vecu = vec[:V]
+            vecd = vec[V:]
             H[row,row] = \
             self.U * np.dot(vecu, vecd) \
             - self.mu * sum(vec) \
@@ -183,24 +181,24 @@ class EDFermiHubbardModel():
 
             #off-diagonal part
             if self._periodic or self._periodic==1:  
-                last = L-1
+                pass
             elif not self._periodic or self._periodic==0:
-                last = L-2
+                pass
             else:
                 raise Exception("Not implemented!")
             
-            for j1 in range(last):
-                k1 = j1+1 % L
-                j2 = j1+L
-                k2 = k1 + L
-                newvec = hop(j1,k1,vec)
-                if newvec is not None:
-                    col = hdict[newvec]
-                    H[row,col] = H[col,row] = -self.t
-                newvec = hop(j2,k2,vec)
-                if newvec is not None:
-                    col = hdict[newvec]
-                    H[row,col] = H[col,row] = -self.t
+            for j1 in range(V-1):
+                for k1 in get_next_neighbors(j1, lattice_length=self.getLength(), width=self.getWidth(), distance=1, periodic=self._periodic):                
+                    j2 = j1+V
+                    k2 = k1+V
+                    newvec = hop(j1,k1,vec)
+                    if newvec is not None:
+                        col = hdict[newvec]
+                        H[row,col] = H[col,row] = -self.t
+                    newvec = hop(j2,k2,vec)
+                    if newvec is not None:
+                        col = hdict[newvec]
+                        H[row,col] = H[col,row] = -self.t
             
         print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
         return H
@@ -215,6 +213,10 @@ class EDFermiHubbardModel():
         """
         return self._lattice_length
 
+    def getWidth(self):
+        """Returns the length of the system.
+        """
+        return self._lattice_width
     
     def solve(self):
         H = self.getHamiltonian()
@@ -254,7 +256,10 @@ class EDFermiHubbardModel():
                     print("ERROR finding the ground state of H="+str(H))
                     self.energy, self.groundstate = -1, [1/self.dimh] * self.dimh
                     raise
-        
+
+    def getPrimal(self):
+        return self.getEnergy()
+                
     def getEnergy(self):
         if self.energy is None:
             self.solve()
@@ -415,6 +420,26 @@ class EDFermiHubbardModel():
                           self.getSuffix() + ".pickle", 'wb') as handle:
                     pickle.dump(self.monomialvector, handle)
         print("done")
+
+    def getPhysicalQuantities(self):
+        """Returns a dictionaly of names and corresponding functions of all
+        physical quantities that are to be written in writeData(). This should
+        be overwritten in subclasses.
+        """
+        return {"/edPrimal": [self.getPrimal()],
+                "/edMagnetization": [self.getMagnetization()]}
+
+    def writeData(which=None):
+        """Writes the values of all physical quantities returned by
+        getPhysicalQuantities() to the respective files.
+        """
+        if which==None:
+            which = self.getPhysicalQuantities().items()
+        for key, data in iter(which):
+            write_array(self._outputDir + key + self.getSuffix() + ".csv",
+                        data)
+
+
         
 def monomialmatrix(monomial, old=None, new=None):
     return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
