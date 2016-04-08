@@ -283,8 +283,10 @@ class SecondQuantizedModel(LatticeModel):
         self.n = None
         self.nmin = None
         if window_length == 0:
-            self.window_length = lattice_length
+            self.window_length = lattice_length * lattice_width
         else:
+            if self._lattice_width != 1:
+                raise Exception("Windowed models in more than 1D not implemented!")
             self.window_length = window_length
 
     def createSdp(self, outdatedSdpRelaxation=None):
@@ -480,11 +482,13 @@ class SecondQuantizedModel(LatticeModel):
                 "/primal": [self.getPrimal()],
                 "/dual": [self.getPrimal()]}
 
-    def writeData(self):
+    def writeData(which=None):
         """Writes the values of all physical quantities returned by
         getPhysicalQuantities() to the respective files.
         """
-        for key, data in iter(self.getPhysicalQuantities().items()):
+        if which==None:
+            which = self.getPhysicalQuantities().items()
+        for key, data in iter(which):
             write_array(self._outputDir + key + self.getSuffix() + ".csv",
                         data)
 
@@ -493,7 +497,7 @@ class SecondQuantizedModel(LatticeModel):
                  str(self._lattice_width)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
-        if self.window_length != self._lattice_length:
+        if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
         suffix += "_level="+str(self._level)
         return suffix
@@ -569,7 +573,7 @@ class BoseHubbardModel(SecondQuantizedModel):
 
     def createMonomials(self):
         monomials = []
-        for i in range(self.getLength() - self.window_length + 1):
+        for i in range(self.getSize() - self.window_length + 1):
             window = self._b[i:i+self.window_length]
             monomials.append([bj*bi for bi in window for bj in window])
             monomials.append([Dagger(bj)*bi for bi in window for bj in window])
@@ -604,7 +608,7 @@ class BoseHubbardModel(SecondQuantizedModel):
             suffix += "_localnmax="+str(self.localNmax)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
-        if self.window_length != self._lattice_length:
+        if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
         suffix += "_level="+str(self._level)
         return suffix
@@ -625,12 +629,12 @@ class FermiHubbardModel(SecondQuantizedModel):
         self._periodic = None
 
     def createHamiltonian(self):
-        if self._lattice_width != 1:
-            raise Exception("Higher dimension not implemented!")
-        elif self._periodic or self._periodic == 1:
+        if self._periodic or self._periodic == 1:
             fuext = self._fu + [fi for fi in self._fu]
             fdext = self._fd + [fi for fi in self._fd]
         elif self._periodic == -1:
+            if self._lattice_width != 1:
+                raise Exception("Anit periodic in more than 1D not implemented!")
             fuext = self._fu + [-fi for fi in self._fu]
             fdext = self._fd + [-fi for fi in self._fd]
         else:
@@ -638,26 +642,26 @@ class FermiHubbardModel(SecondQuantizedModel):
             fdext = self._fd
 
         hamiltonian = 0
-        L = self.getLength()
+        V = self.getSize()
         if self.t != 0:
-            for j in range(L):
-                for k in get_neighbors(j, len(fuext), width=1):
+            for j in range(V):
+                for k in get_neighbors(j, len(fuext), width=1, periodic=self._periodic):
                     hamiltonian += -self.t*Dagger(fuext[j])*fuext[k]\
                                    -self.t*Dagger(fuext[k])*fuext[j]
                     hamiltonian += -self.t*Dagger(fdext[j])*fdext[k]\
                                    -self.t*Dagger(fdext[k])*fdext[j]
         if self.U != 0:
-            for j in range(L):
+            for j in range(V):
                 hamiltonian += self.U * (Dagger(fuext[j])*Dagger(fdext[j]) *
                                          fdext[j]*fuext[j])
 
         if self.h != 0:
-            for j in range(L):
+            for j in range(V):
                 hamiltonian += -self.h/2*(Dagger(fuext[j])*fuext[j] -
                                           Dagger(fdext[j])*fdext[j])
 
         if self.mu != 0:
-            for j in range(L):
+            for j in range(V):
                 hamiltonian += -self.mu*(Dagger(fuext[j])*fuext[j] +
                                          Dagger(fdext[j])*fdext[j])
 
@@ -721,7 +725,7 @@ class FermiHubbardModel(SecondQuantizedModel):
             suffix += "_localnmax="+str(self.localNmax)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
-        if self.window_length != self._lattice_length:
+        if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
         suffix += "_level="+str(self._level)
         return suffix
@@ -798,7 +802,7 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
             suffix += "_localnmax="+str(self.localNmax)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
-        if self.window_length != self._lattice_length:
+        if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
         suffix += "_level="+str(self._level)
         return suffix
