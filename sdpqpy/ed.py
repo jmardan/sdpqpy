@@ -277,7 +277,7 @@ class EDFermiHubbardModel():
     def getMagnetization(self):
         if self.groundstate is None:
             self.solve()
-        Mdiag = [0.5*(sum(vec[:self.getLength()]) - sum(vec[self.getLength():])) for vec in self.getHilbertSpace()]
+        Mdiag = [0.5*(sum(vec[:self.getSize()]) - sum(vec[self.getSize():])) for vec in self.getHilbertSpace()]
         #print('Mdiag='+str(Mdiag)+" self.groundstate="+str(self.groundstate))
         return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
 
@@ -289,13 +289,13 @@ class EDFermiHubbardModel():
         return np.vdot(self.groundstate, np.dot(operator,self.groundstate))
 
     def getXMat(self, variables, monomials):
-        L = self.getLength()
+        V = self.getSize()
         
         old = list(variables)
         old.append(Dagger)
         
         print("generating uplifted ground state")
-        upliftedgroundstate = np.zeros(int(pow(2, 2*L)))
+        upliftedgroundstate = np.zeros(int(pow(2, 2*V)))
 
         #print("hilbert space"+str(list(self.getHilbertSpace())))
         #print("hdict full"+str(self.getHdictFull()))
@@ -351,7 +351,7 @@ class EDFermiHubbardModel():
             suffix += "_localnmax="+str(self.localNmax)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
-        if self.window_length != self._lattice_length:
+        if self.window_length != self._lattice_length * self._lattice_width:
             suffix += "_window=" + str(self.window_length)
         if self.mu != 0:
             suffix += "_mu=" + str(self.mu)
@@ -359,16 +359,16 @@ class EDFermiHubbardModel():
         return suffix
 
     def getAnnihiliationOperators(self):
-        L = self.getLength()
+        V = self.getSize()
         if self.annihiliationOperators is None:
             print("generating annihiliation operators")
-            self.annihiliationOperators = [self.createAnnihiliationOperator(j) for j in range(0, 2*L)]
+            self.annihiliationOperators = [self.createAnnihiliationOperator(j) for j in range(0, 2*V)]
         return self.annihiliationOperators
     
     def createAnnihiliationOperator(self, j):
-        L = self.getLength()
-        a = sympy.zeros(int(pow(2, 2*L)), int(pow(2, 2*L)))
-        for row, vec in enumerate(it.product([0, 1], repeat = 2*L)):
+        V = self.getSize()
+        a = sympy.zeros(int(pow(2, 2*V)), int(pow(2, 2*V)))
+        for row, vec in enumerate(it.product([0, 1], repeat = 2*V)):
             if vec[j] == 1:
                 newvec = list(vec)
                 newvec[j] = 0
@@ -382,11 +382,11 @@ class EDFermiHubbardModel():
         return self.hdictfull
     
     def createHdictFull(self):
-        L = self.getLength()
+        V = self.getSize()
         #reverse lookup table for the elements of the hilbet space to efficiently generate the annihilation operators
         print("generating lookup table")
         hdict = {}
-        for row, vec in enumerate(it.product([0, 1], repeat = 2*L)):
+        for row, vec in enumerate(it.product([0, 1], repeat = 2*V)):
             hdict[vec] = row
         return hdict
 
@@ -403,7 +403,6 @@ class EDFermiHubbardModel():
         return self.monomialvector
 
     def createMonomialVector(self, old, new, monomials):
-        L = self.getLength()
         monomialsLength = len(flatten(monomials))
         print(" generating monomial vector")
         time0 = time.time()
