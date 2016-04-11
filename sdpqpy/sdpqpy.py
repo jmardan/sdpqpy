@@ -626,7 +626,6 @@ class FermiHubbardModel(SecondQuantizedModel):
         self._fd = generate_variables('fd', lattice_length * lattice_width, commutative=False)
         self._b = flatten([self._fu, self._fd])
         self.mu, self.t, self.h, self.U = 0, 0, 0, 0
-        self._periodic = None
 
     def createHamiltonian(self):
         if self._periodic or self._periodic == 1:

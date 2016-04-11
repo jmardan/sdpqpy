@@ -349,8 +349,8 @@ class EDFermiHubbardModel():
             suffix += "_nmin="+str(self.nmin)
         if self.localNmax is not None:
             suffix += "_localnmax="+str(self.localNmax)
-        if self._periodic:
-            suffix += "_periodic=" + str(self._periodic)
+        # if self._periodic:
+        #     suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self._lattice_length * self._lattice_width:
             suffix += "_window=" + str(self.window_length)
         if self.mu != 0:
