@@ -322,15 +322,17 @@ class EDFermiHubbardModel():
         
         output = np.empty([len(m), len(m)])
         pool2 = multiprocessing.Pool()
+        lock = multiprocessing.Lock()
         m2 = pool2.imap(npstardot, it.product(m, repeat=2))
         for i, out in enumerate(m2, 1):
+            lock.acquire()
             row = (i-1) % len(m)
             col = (i-1 - row)/len(m)
             if row >= col:
                 output[row, col] = output[col, row] = out
             sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" in "+str(time.time()-time0)+" seconds ")
             sys.stdout.flush()
-
+            lock.release()
         pool2.close()
         pool2.join()
         print("done")
@@ -413,11 +415,14 @@ class EDFermiHubbardModel():
         self.monomialvector = []
 
         pool = multiprocessing.Pool()
+        lock = multiprocessing.Lock()
         monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
         for i, monom in enumerate(monomials, 1):
+            lock.acquire()
             self.monomialvector.append(monom)
             sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
             sys.stdout.flush()
+            lock.release()
         pool.close()
         pool.join()
 
