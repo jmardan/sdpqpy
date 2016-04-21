@@ -248,7 +248,7 @@ class EDFermiHubbardModel():
             else:
                 try:
                     time0 = time.time()
-                    self.energy, self.groundstate = eigsh(H, 1, which="SA")
+                    self.energy, self.groundstate = eigsh(H, 1, which="SA", maxiter=1000, tol=1E-5)
                     print("Ground state of Hamiltonian of dimension "+str(len(H))+" found in", time.time()-time0, "seconds")
 
                     if self._outputDir is not None:
