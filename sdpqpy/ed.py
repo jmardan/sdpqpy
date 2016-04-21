@@ -416,7 +416,7 @@ class EDFermiHubbardModel():
         # but computes the elements of self.monomialvector in parallel
 
         self.monomialvector = []
-        pool = multiprocessing.Pool(1)
+        pool = multiprocessing.Pool()
 #        lock = multiprocessing.Lock()
         monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatmonomials)
         for i, monom in enumerate(monomials, 1):
