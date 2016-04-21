@@ -371,7 +371,7 @@ class EDFermiHubbardModel():
     
     def createAnnihiliationOperator(self, j):
         V = self.getSize()
-        a = sympy.zeros(int(pow(2, 2*V)), int(pow(2, 2*V)))
+        a = np.zeros((int(pow(2, 2*V)), int(pow(2, 2*V))))
         for row, vec in enumerate(it.product([0, 1], repeat = 2*V)):
             if vec[j] == 1:
                 newvec = list(vec)
@@ -478,7 +478,7 @@ def monomialmatrix(monomial, old=None, new=None):
 
 def evalmonomial(expr, dictionary):
     if expr.func == Operator:
-        return np.array(dictionary[expr])#optimze!!!
+        return dictionary[expr]
     elif expr.func == Dagger:
         return evalmonomial(expr.args[0], dictionary).conj().T
     elif expr.func == Mul:
