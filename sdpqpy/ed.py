@@ -16,8 +16,9 @@ import time
 from abc import ABCMeta, abstractmethod
 
 import sympy
-from sympy import adjoint, conjugate, S, Symbol, Pow, Number, expand, I, Matrix, Lambda
+from sympy import adjoint, conjugate, S, Symbol, Pow, Number, expand, I, Matrix, Lambda, Mul
 from sympy.physics.quantum import Dagger
+from sympy.physics.quantum.operator import Operator
 from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        generate_variables, bosonic_constraints, flatten, \
                        fermionic_constraints, SdpRelaxation
@@ -30,6 +31,7 @@ from functools import partial
 import numpy as np
 import scipy
 import itertools as it
+import functools as ft
 from scipy.sparse.linalg import eigsh
 import scipy.sparse as sps
 
@@ -262,7 +264,7 @@ class EDFermiHubbardModel():
                     raise 
                 except:
                     print("paramters="+self.getSuffix())
-                    print("ERROR finding the ground state of H="+str(H))
+                    print("ERROR finding the ground state of H="+str(H)+" in Hilbert space "+str(self.getHilbertSpace()))
                     self.energy, self.groundstate = -1, [1/self.dimh] * self.dimh
                     raise
 
@@ -405,7 +407,8 @@ class EDFermiHubbardModel():
         return self.monomialvector
 
     def createMonomialVector(self, old, new, monomials):
-        monomialsLength = len(flatten(monomials))
+        flatmonomials = flatten(monomials)
+        monomialsLength = len(flatmonomials)
         print(" generating monomial vector")
         time0 = time.time()
         # the following is roughly equivalent to 
@@ -413,16 +416,15 @@ class EDFermiHubbardModel():
         # but computes the elements of self.monomialvector in parallel
 
         self.monomialvector = []
-
-        pool = multiprocessing.Pool()
-        lock = multiprocessing.Lock()
-        monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatten(monomials))
+        pool = multiprocessing.Pool(1)
+#        lock = multiprocessing.Lock()
+        monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatmonomials)
         for i, monom in enumerate(monomials, 1):
-            lock.acquire()
+#            lock.acquire()
             self.monomialvector.append(monom)
             sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
             sys.stdout.flush()
-            lock.release()
+#            lock.release()
         pool.close()
         pool.join()
 
@@ -455,7 +457,38 @@ class EDFermiHubbardModel():
 
         
 def monomialmatrix(monomial, old=None, new=None):
-    return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
+    try:
+        # this is a much less powerful but much faster replacement for
+        # return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
+        matrix = evalmonomial(monomial, dict(zip(old, new)))
+        # print("monomial "+str(monomial)+" evaluated to\n"+str(matrix))
+        # matrix2 = np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
+        # print("while for "+str(monomial)+" lambdify yields\n"+str(matrix2))
+        # if matrix.any() != matrix2.any():
+        #     raise Exception("foo")
+        return matrix
+    except:
+        print("\nproblem while processing expr="+str(monomial)+"wich consists of:")
+        def printtree(expr, level):
+            print("level",level,":", expr, "of type ", expr.func)
+            for arg in expr.args:
+                printtree(arg, level+1)
+        printtree(monomial, 0)
+        raise
+
+def evalmonomial(expr, dictionary):
+    if expr.func == Operator:
+        return np.array(dictionary[expr])#optimze!!!
+    elif expr.func == Dagger:
+        return evalmonomial(expr.args[0], dictionary).conj().T
+    elif expr.func == Mul:
+        return ft.reduce(np.dot, (evalmonomial(arg, dictionary) for arg in expr.args))
+    elif expr.func == Pow:
+        return np.linalg.matrix_power(evalmonomial(expr.args[0],dictionary),int(expr.args[1]))
+    else:
+        raise Exception("unknown sympy func: "+str(expr.func))
+
+
 
 def npdotinverted(b, a):
     return np.dot(a,b)
