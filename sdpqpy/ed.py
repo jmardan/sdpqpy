@@ -16,7 +16,8 @@ import time
 from abc import ABCMeta, abstractmethod
 
 import sympy
-from sympy import adjoint, conjugate, S, Symbol, Pow, Number, expand, I, Matrix, Lambda, Mul
+from sympy import adjoint, conjugate, S, Symbol, Pow, Number, expand, I, Matrix, Lambda, Mul, Add, Integer, Float
+from sympy.core.numbers import NegativeOne
 from sympy.physics.quantum import Dagger
 from sympy.physics.quantum.operator import Operator
 from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
@@ -160,6 +161,9 @@ class EDFermiHubbardModel():
             return unique_permutations(list(it.chain(it.repeat(0, 2*V - int(self.n)), it.repeat(1, int(self.n)))))
             
     def createHamiltonian(self):
+        if self._periodic == -1:
+            raise Exception("Not implemented!")
+        
         time0 = time.time()
         
         def hop(j,k,vec):
@@ -181,36 +185,34 @@ class EDFermiHubbardModel():
 
         H = sps.dok_matrix((self.dimh, self.dimh), dtype=np.float32)
 
-        #diagonal part
         for row, vec in enumerate(self.getHilbertSpace()):
             vecu = vec[:V]
             vecd = vec[V:]
+
+            #diagonal part
             H[row,row] = \
             self.U * np.dot(vecu, vecd) \
             - self.mu * sum(vec) \
             - self.h/2 * (sum(vecu) - sum(vecd))
 
             #off-diagonal part
-            if self._periodic or self._periodic==1:  
-                pass
-            elif not self._periodic or self._periodic==0:
-                pass
-            else:
-                raise Exception("Not implemented!")
-            
             for j1 in range(V):
-                for k1 in get_next_neighbors(j1, lattice_length=self.getLength(), width=self.getWidth(), distance=1, periodic=self._periodic):                
+                for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
                     j2 = j1+V
                     k2 = k1+V
                     newvec = hop(j1,k1,vec)
+#                    print("hop",j1,"->",k1,vec,newvec)
                     if newvec is not None:
                         col = hdict[newvec]
-                        H[row,col] = H[col,row] = -self.t
+                        H[row,col] += -self.t
+                        H[col,row] += -self.t
                     newvec = hop(j2,k2,vec)
+#                    print("hop",j2,"->",k2,vec,newvec)
                     if newvec is not None:
                         col = hdict[newvec]
-                        H[row,col] = H[col,row] = -self.t
-            
+                        H[row,col] += -self.t
+                        H[col,row] += -self.t
+                        
         print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
         return H
 
@@ -293,30 +295,19 @@ class EDFermiHubbardModel():
     def getXMat(self, variables, monomials):
         V = self.getSize()
         
-        old = list(variables)
-        old.append(Dagger)
-        
         print("generating uplifted ground state")
         upliftedgroundstate = np.zeros(int(pow(2, 2*V)))
-
-        #print("hilbert space"+str(list(self.getHilbertSpace())))
-        #print("hdict full"+str(self.getHdictFull()))
-        #exit()
         
         for row, vec in enumerate(self.getHilbertSpace()):
             hdict = self.getHdictFull()
             col = hdict[tuple(vec)]
             upliftedgroundstate[col] = self.groundstate[row]
-            
-        #print(str(upliftedgroundstate))
-        new = self.getAnnihiliationOperators()
-        new.append(Dagger)
         
         print("generating xmat entries")
         time0 = time.time()
         # the following is roughly equivalent to
         # output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
-        monomialvec = self.getMonomialVector(old, new, monomials)
+        monomialvec = self.getMonomialVector(variables, monomials)
         pool = multiprocessing.Pool()
         m = pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
         pool.close()
@@ -394,7 +385,7 @@ class EDFermiHubbardModel():
             hdict[vec] = row
         return hdict
 
-    def getMonomialVector(self, old, new, monomials):
+    def getMonomialVector(self, variables, monomials):
         if self.monomialvector is None:
             try:
                 with open(self._outputDir + "/" +"edMonomialVector" +
@@ -403,28 +394,23 @@ class EDFermiHubbardModel():
             except (KeyboardInterrupt, SystemExit):
                 raise
             except:           
-                self.createMonomialVector(old, new, monomials)
+                self.createMonomialVector(variables, monomials)
         return self.monomialvector
 
-    def createMonomialVector(self, old, new, monomials):
+    def createMonomialVector(self, variables, monomials):
+        
         flatmonomials = flatten(monomials)
         monomialsLength = len(flatmonomials)
         print(" generating monomial vector")
         time0 = time.time()
-        # the following is roughly equivalent to 
-        # self.monomialvector = [ np.array(sympy.lambdify(old, monomial, modules="numpy")(*new)) for monomial in flatten(monomials)]
-        # but computes the elements of self.monomialvector in parallel
-
+        
         self.monomialvector = []
         pool = multiprocessing.Pool()
-#        lock = multiprocessing.Lock()
-        monomials = pool.imap(partial(monomialmatrix, old=old, new=new), flatmonomials)
+        monomials = pool.imap(partial(expressionToMatrix, variables=list(variables), matrices=self.getAnnihiliationOperators()), flatmonomials)
         for i, monom in enumerate(monomials, 1):
-#            lock.acquire()
             self.monomialvector.append(monom)
             sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
             sys.stdout.flush()
-#            lock.release()
         pool.close()
         pool.join()
 
@@ -456,39 +442,40 @@ class EDFermiHubbardModel():
 
 
         
-def monomialmatrix(monomial, old=None, new=None):
+def expressionToMatrix(expr, variables=None, matrices=None):
+    """Converts sympy expression expr formulated in terms of the variables variables to a numpy array, by replacing every occurance of a variable in variables with the corresponding numpy matrix/array in matrices.
+    """
+
+    def evalmonomial(expr, dictionary):
+        if expr.func == Operator:
+            return dictionary[expr]
+        elif expr.func == Integer or expr.func == NegativeOne:
+            return int(expr)
+        elif expr.func == Float:
+            return float(expr)
+        elif expr.func == Dagger:
+            return evalmonomial(expr.args[0], dictionary).conj().T
+        elif expr.func == Pow:
+            return np.linalg.matrix_power(evalmonomial(expr.args[0],dictionary),int(expr.args[1]))
+        elif expr.func == Mul:
+            return ft.reduce(np.dot, (evalmonomial(arg, dictionary) for arg in expr.args))
+        elif expr.func == Add:
+            return ft.reduce(np.add, (evalmonomial(arg, dictionary) for arg in expr.args))
+        else:
+            raise Exception("unknown sympy func: "+str(expr.func))
+    
+    dictionary = dict(zip(variables, matrices))
     try:
-        # this is a much less powerful but much faster replacement for
-        # return np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
-        matrix = evalmonomial(monomial, dict(zip(old, new)))
-        # print("monomial "+str(monomial)+" evaluated to\n"+str(matrix))
-        # matrix2 = np.array(sympy.lambdify(old, monomial, modules="numpy")(*new))
-        # print("while for "+str(monomial)+" lambdify yields\n"+str(matrix2))
-        # if matrix.any() != matrix2.any():
-        #     raise Exception("foo")
+        matrix = evalmonomial(expr, dictionary)
         return matrix
     except:
-        print("\nproblem while processing expr="+str(monomial)+"wich consists of:")
+        print("\nproblem while processing expr="+str(expr)+"wich consists of:")
         def printtree(expr, level):
             print("level",level,":", expr, "of type ", expr.func)
             for arg in expr.args:
                 printtree(arg, level+1)
-        printtree(monomial, 0)
+        printtree(expr, 0)
         raise
-
-def evalmonomial(expr, dictionary):
-    if expr.func == Operator:
-        return dictionary[expr]
-    elif expr.func == Dagger:
-        return evalmonomial(expr.args[0], dictionary).conj().T
-    elif expr.func == Mul:
-        return ft.reduce(np.dot, (evalmonomial(arg, dictionary) for arg in expr.args))
-    elif expr.func == Pow:
-        return np.linalg.matrix_power(evalmonomial(expr.args[0],dictionary),int(expr.args[1]))
-    else:
-        raise Exception("unknown sympy func: "+str(expr.func))
-
-
 
 def npdotinverted(b, a):
     return np.dot(a,b)

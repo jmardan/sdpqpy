@@ -9,11 +9,12 @@ techniques by leveraging ncpo2sdpa.
 @author: Christian Gogolin, Peter Wittek
 """
 from .sdpqpy import BoseHubbardModel, FermiHubbardModel, LongRangeQuadraticFermiModel
-from .ed import EDFermiHubbardModel
+from .ed import EDFermiHubbardModel, expressionToMatrix
 
 
 __all__ = ['BoseHubbardModel',
            'FermiHubbardModel',
            'LongRangeQuadraticFermiModel',
-           'EDFermiHubbardModel'
+           'EDFermiHubbardModel',
+           'expressionToMatrix'
        ]

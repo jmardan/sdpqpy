@@ -628,14 +628,10 @@ class FermiHubbardModel(SecondQuantizedModel):
         self.mu, self.t, self.h, self.U = 0, 0, 0, 0
 
     def createHamiltonian(self):
-        if self._periodic or self._periodic == 1:
-            fuext = self._fu + [fi for fi in self._fu]
-            fdext = self._fd + [fi for fi in self._fd]
-        elif self._periodic == -1:
-            if self._lattice_width != 1:
-                raise Exception("Anit periodic in more than 1D not implemented!")
-            fuext = self._fu + [-fi for fi in self._fu]
-            fdext = self._fd + [-fi for fi in self._fd]
+        if self._periodic == -1:
+            raise Exception("Anit periodic not implemented!")
+            # fuext = self._fu + [-fi for fi in self._fu]
+            # fdext = self._fd + [-fi for fi in self._fd]
         else:
             fuext = self._fu
             fdext = self._fd
@@ -645,6 +641,7 @@ class FermiHubbardModel(SecondQuantizedModel):
         if self.t != 0:
             for j in range(V):
                 for k in get_neighbors(j, self.getLength(), width=self.getWidth(), periodic=self._periodic):
+#                    print("link",j,"->",k)
                     hamiltonian += -self.t*Dagger(fuext[j])*fuext[k]\
                                    -self.t*Dagger(fuext[k])*fuext[j]
                     hamiltonian += -self.t*Dagger(fdext[j])*fdext[k]\
