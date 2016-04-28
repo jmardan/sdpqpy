@@ -164,16 +164,7 @@ class EDFermiHubbardModel():
         if self._periodic == -1:
             raise Exception("Not implemented!")
         
-        time0 = time.time()
-        
-        def hop(j,k,vec):
-            if vec[j] == 0 or vec[k] == 1:
-                return None
-            else:
-                newvec = list(vec)
-                newvec[j] = 0
-                newvec[k] = 1
-                return tuple(newvec)
+        time0 = time.time()        
             
         V = self.getSize()        
 
@@ -200,18 +191,18 @@ class EDFermiHubbardModel():
                 for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
                     j2 = j1+V
                     k2 = k1+V
-                    newvec = hop(j1,k1,vec)
+                    sign, newvec = self.hop(j1,k1,vec)
 #                    print("hop",j1,"->",k1,vec,newvec)
                     if newvec is not None:
                         col = hdict[newvec]
-                        H[row,col] += -self.t
-                        H[col,row] += -self.t
-                    newvec = hop(j2,k2,vec)
+                        H[row,col] += -self.t*sign
+                        H[col,row] += -self.t*sign
+                    sign, newvec = self.hop(j2,k2,vec)
 #                    print("hop",j2,"->",k2,vec,newvec)
                     if newvec is not None:
                         col = hdict[newvec]
-                        H[row,col] += -self.t
-                        H[col,row] += -self.t
+                        H[row,col] += -self.t*sign
+                        H[col,row] += -self.t*sign
                         
         print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
         return H
@@ -440,7 +431,38 @@ class EDFermiHubbardModel():
             write_array(self._outputDir + key + self.getSuffix() + ".csv",
                         data)
 
+    def hop(self, j, k, vec):
+        if vec[j] == 0 or vec[k] == 1:
+            return None, None
+        else:
+            newvec = list(vec)
+            newvec[j] = 0
+            newvec[k] = 1
+            sign = 1
+            if (j<k and sum(vec[j+1:k]) % 2 == 1) or (j>k and sum(vec[k+1:j]) % 2 ==10):
+                sign = -1
+            return sign, tuple(newvec)
 
+            
+    def projectorOntoHilbertSpace(self):
+        V = self.getSize()
+        P = sps.dok_matrix((int(pow(2, 2*V)), self.dimh), dtype=np.float32)
+        #print("P shape="+str(P.get_shape()))
+        
+        dict = self.getHdictFull()
+        for row, vec in enumerate(self.getHilbertSpace()):
+            col = dict[vec]
+            #print("vec="+str(vec)+" col="+str(col)+" row="+str(row))
+            P[col,row] = 1
+        
+
+        # for col, (vec, row) in enumerate(self.getHdictFull().iteritems()):
+        #     print("vec="+str(vec)+" col="+str(col)+" row="+str(row))
+        #     if sum(vec) == self.n:
+        #         P[row,col] = 1
+        return P    
+        
+            
         
 def expressionToMatrix(expr, variables=None, matrices=None):
     """Converts sympy expression expr formulated in terms of the variables variables to a numpy array, by replacing every occurance of a variable in variables with the corresponding numpy matrix/array in matrices.

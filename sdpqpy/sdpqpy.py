@@ -641,7 +641,6 @@ class FermiHubbardModel(SecondQuantizedModel):
         if self.t != 0:
             for j in range(V):
                 for k in get_neighbors(j, self.getLength(), width=self.getWidth(), periodic=self._periodic):
-#                    print("link",j,"->",k)
                     hamiltonian += -self.t*Dagger(fuext[j])*fuext[k]\
                                    -self.t*Dagger(fuext[k])*fuext[j]
                     hamiltonian += -self.t*Dagger(fdext[j])*fdext[k]\
