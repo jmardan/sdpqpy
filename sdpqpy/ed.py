@@ -432,6 +432,8 @@ class EDFermiHubbardModel():
                         data)
 
     def hop(self, j, k, vec):
+        if j==k:
+            raise Exception('j=k not implemented')
         if vec[j] == 0 or vec[k] == 1:
             return None, None
         else:
@@ -439,8 +441,11 @@ class EDFermiHubbardModel():
             newvec[j] = 0
             newvec[k] = 1
             sign = 1
-            if (j<k and sum(vec[j+1:k]) % 2 == 1) or (j>k and sum(vec[k+1:j]) % 2 ==10):
+            if (j<k and sum(vec[j+1:k]) % 2 == 1):
                 sign = -1
+            elif (j>k and sum(vec[k+1:j]) % 2 == 1):
+                sign = -1
+                
             return sign, tuple(newvec)
 
             
