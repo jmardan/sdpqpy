@@ -42,6 +42,7 @@ class LatticeModel:
         self.__sdpRelaxation = None
         self.__outdatedSdpRelaxation = None
         self.__hamiltonian = None
+        self._precision = None
 
     @abstractmethod
     def getSuffix(self):
@@ -236,11 +237,29 @@ class LatticeModel:
 
             print('solving SDP with '+str(self._solver))
             time0 = time.time()
-            self.__sdpRelaxation.solve(solver=self._solver)
+            solverparameters = None
+            if self._precision != None and self._solver == "mosek":
+                solverparameters={
+                    'dparam.intpnt_co_tol_rel_gap': self._precision,
+                    'dparam.intpnt_co_tol_mu_red': self._precision,
+                    'dparam.intpnt_nl_tol_rel_gap': self._precision,
+                    'dparam.intpnt_nl_tol_mu_red': self._precision,
+                    'dparam.intpnt_tol_rel_gap': self._precision,
+                    'dparam.intpnt_tol_mu_red': self._precision,
+                    'dparam.intpnt_co_tol_dfeas': self._precision,
+                    'dparam.intpnt_co_tol_infeas': self._precision,
+                    'dparam.intpnt_co_tol_pfeas': self._precision,
+                }
+            
+            self.__sdpRelaxation.solve(solver=self._solver, solverparameters=solverparameters)
             print("SDP solved in", time.time()-time0, "seconds")
 
             self.pickleSdp(self.__sdpRelaxation)
 
+    def setPrecision(self, precision):
+        self._precision = precision
+
+            
     def getEnergy(self):
         """Returns the energy (primal of the SDP) of the system.
         """
