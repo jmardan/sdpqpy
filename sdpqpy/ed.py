@@ -276,6 +276,12 @@ class EDFermiHubbardModel():
         #print('Mdiag='+str(Mdiag)+" self.groundstate="+str(self.groundstate))
         return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
 
+    def getNumberOfPairs(self):
+        if self.groundstate is None:
+            self.solve()
+        Pdiag = [np.dot(vec[:self.getSize()], vec[self.getSize():]) for vec in self.getHilbertSpace()]
+        return np.dot(Pdiag, [c * np.conj(c) for c in self.groundstate])
+    
     def expectationValue(self, operator):
         """Returns the expectation value of the given operator.
         """
@@ -306,17 +312,17 @@ class EDFermiHubbardModel():
         
         output = np.empty([len(m), len(m)])
         pool2 = multiprocessing.Pool()
-        lock = multiprocessing.Lock()
+#        lock = multiprocessing.Lock()
         m2 = pool2.imap(npstardot, it.product(m, repeat=2))
         for i, out in enumerate(m2, 1):
-            lock.acquire()
+#            lock.acquire()
             row = (i-1) % len(m)
             col = (i-1 - row)/len(m)
             if row >= col:
                 output[row, col] = output[col, row] = out
             sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" in "+str(time.time()-time0)+" seconds ")
             sys.stdout.flush()
-            lock.release()
+#            lock.release()
         pool2.close()
         pool2.join()
         print("done")

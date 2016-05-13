@@ -250,6 +250,8 @@ class LatticeModel:
                     'dparam.intpnt_co_tol_infeas': self._precision,
                     'dparam.intpnt_co_tol_pfeas': self._precision,
                 }
+            elif self._precision != None:
+                raise Exception('Setting precision only implemented for mosek.')
             
             self.__sdpRelaxation.solve(solver=self._solver, solverparameters=solverparameters)
             print("SDP solved in", time.time()-time0, "seconds")
@@ -363,7 +365,7 @@ class SecondQuantizedModel(LatticeModel):
             momentinequalities.append(sum(Dagger(br)*br for br in self._b)-self.nmin)
 
         try:
-            # Try to recycle the outdated or loaded SDP this only works if if
+            # Try to recycle the outdated or loaded SDP. This only works if
             # sdpRelaxation is not None and the number of constaints matches
             print("trying to recycle an old solution")
             sdpRelaxation.process_constraints(equalities=equalities,
