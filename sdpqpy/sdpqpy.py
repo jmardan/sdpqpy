@@ -44,7 +44,7 @@ class PatchedRdmHierarchy(RdmHierarchy):
             super(PatchedRdmHierarchy, self).process_constraints(inequalities=inequalities, equalities=equalities,
                             momentinequalities=momentinequalities, momentequalities=momentequalities,
                             block_index=block_index, removeequalities=removeequalities)    
-            self.constraints_hash = hash(frozenset((str(inequalities),str(equalities),str(bounds),str(momentinequalities),str(momentequalities),str(removeequalities))))
+            self.constraints_hash = hash(frozenset((str(inequalities),str(equalities),str(momentinequalities),str(momentequalities),str(removeequalities))))
 
         
         
