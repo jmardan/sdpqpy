@@ -300,8 +300,6 @@ class EDFermiHubbardModel():
         
         print("generating xmat entries")
         time0 = time.time()
-        # the following is roughly equivalent to
-        # output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
         monomialvec = self.getMonomialVector(variables, monomials)
         try:
             pool = multiprocessing.Pool()
