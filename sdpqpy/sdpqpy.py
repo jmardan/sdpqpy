@@ -27,6 +27,28 @@ def write_array(filename, array):
     file_.close()
 
 
+class PatchedRdmHierarchy(RdmHierarchy):
+
+    def __init__(self, variables, parameters=None, verbose=0, circulant=False,
+                 parallel=False):
+        super(PatchedRdmHierarchy, self).__init__(variables, parameters, verbose,
+                                           False, parallel)
+        self.constraints_hash = None
+
+    def process_constraints(self, inequalities=None, equalities=None,
+                            momentinequalities=None, momentequalities=None,
+                            block_index=0, removeequalities=False):
+        if block_index == 0 or block_index == self.constraint_starting_block:
+            if self.constraints_hash == hash(frozenset((str(inequalities),str(equalities),str(momentinequalities),str(momentequalities),str(removeequalities)))):
+                return
+            super(PatchedRdmHierarchy, self).process_constraints(inequalities=inequalities, equalities=equalities,
+                            momentinequalities=momentinequalities, momentequalities=momentequalities,
+                            block_index=block_index, removeequalities=removeequalities)    
+            self.constraints_hash = hash(frozenset((str(inequalities),str(equalities),str(bounds),str(momentinequalities),str(momentequalities),str(removeequalities))))
+
+        
+        
+
 class LatticeModel:
     """A class to represent an abstract quantum lattice model whose Hamiltonian
     problem is to be solved with ncpol2sdpa.
@@ -377,7 +399,7 @@ class SecondQuantizedModel(LatticeModel):
         except:
             #We have to generate from scatch
             time0 = time.time()
-            sdpRelaxation = RdmHierarchy(self._b, verbose=1, parallel=True)
+            sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=1, parallel=True)
             if self._level == -1:
                 print("creating custom monomial vectors as level is " +
                       str(self._level))
@@ -392,7 +414,8 @@ class SecondQuantizedModel(LatticeModel):
                                          inequalities=inequalities,
                                          momentinequalities=momentinequalities,
                                          substitutions=self.getSubstitutions(),
-                                         extramonomials=monomials)
+                                         extramonomials=monomials,
+                                         removeequalities=True)
             print('SDP of lattice %dx%d generated in %0.2f seconds' %
                   (self._lattice_length, self._lattice_width,
                    (time.time()-time0)))
