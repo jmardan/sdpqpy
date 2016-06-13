@@ -25,8 +25,6 @@ from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
                        fermionic_constraints, SdpRelaxation
 
 import multiprocessing, logging
-# mpl = multiprocessing.log_to_stderr()
-# mpl.setLevel(logging.INFO)
 
 from functools import partial
 import numpy as np
@@ -305,26 +303,28 @@ class EDFermiHubbardModel():
         # the following is roughly equivalent to
         # output = [[ np.vdot(np.dot(m1,upliftedgroundstate), np.dot(m2,upliftedgroundstate)) for m1 in self.getMonomialVector(old, new, monomials)] for m2 in self.getMonomialVector(old, new, monomials)]
         monomialvec = self.getMonomialVector(variables, monomials)
-        pool = multiprocessing.Pool()
-        m = pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
-        pool.close()
-        pool.join()
+        try:
+            pool = multiprocessing.Pool()
+            m = pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
+        finally:
+            pool.close()
+            pool.join()
         
         output = np.empty([len(m), len(m)])
-        pool2 = multiprocessing.Pool()
-#        lock = multiprocessing.Lock()
-        m2 = pool2.imap(npstardot, it.product(m, repeat=2))
-        for i, out in enumerate(m2, 1):
-#            lock.acquire()
-            row = (i-1) % len(m)
-            col = (i-1 - row)/len(m)
-            if row >= col:
-                output[row, col] = output[col, row] = out
-            sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" in "+str(time.time()-time0)+" seconds ")
-            sys.stdout.flush()
-#            lock.release()
-        pool2.close()
-        pool2.join()
+        try:
+            pool2 = multiprocessing.Pool()
+            m2 = pool2.imap(npstardot, it.product(m, repeat=2))
+            for i, out in enumerate(m2, 1):
+                row = (i-1) % len(m)
+                col = (i-1 - row)/len(m)
+                if row >= col:
+                    output[row, col] = output[col, row] = out
+                    sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" in "+str(time.time()-time0)+" seconds ")
+                    sys.stdout.flush()
+        finally:
+            pool2.close()
+            pool2.join()
+            
         print("done")
         return np.array(output, dtype=float)
         
@@ -402,14 +402,16 @@ class EDFermiHubbardModel():
         time0 = time.time()
         
         self.monomialvector = []
-        pool = multiprocessing.Pool()
-        monomials = pool.imap(partial(expressionToMatrix, variables=list(variables), matrices=self.getAnnihiliationOperators()), flatmonomials)
-        for i, monom in enumerate(monomials, 1):
-            self.monomialvector.append(monom)
-            sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
-            sys.stdout.flush()
-        pool.close()
-        pool.join()
+        try:
+            pool = multiprocessing.Pool()
+            monomials = pool.imap(partial(expressionToMatrix, variables=list(variables), matrices=self.getAnnihiliationOperators()), flatmonomials)
+            for i, monom in enumerate(monomials, 1):
+                self.monomialvector.append(monom)
+                sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
+                sys.stdout.flush()
+        finally:
+            pool.close()
+            pool.join()
 
         if self._outputDir is not None:
             if not os.path.isdir(self._outputDir):
