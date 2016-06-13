@@ -673,7 +673,7 @@ class FermiHubbardModel(SecondQuantizedModel):
 
     def createHamiltonian(self):
         if self._periodic == -1:
-            raise Exception("Anit periodic not implemented!")
+            raise Exception("Anti periodic not implemented!")
             # fuext = self._fu + [-fi for fi in self._fu]
             # fdext = self._fd + [-fi for fi in self._fd]
         else:
