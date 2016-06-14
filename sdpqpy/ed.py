@@ -274,7 +274,7 @@ class EDFermiHubbardModel():
         #print('Mdiag='+str(Mdiag)+" self.groundstate="+str(self.groundstate))
         return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
 
-    def getNumberOfPairs(self):
+    def getNumberOfDoubleOccupiedSites(self):
         if self.groundstate is None:
             self.solve()
         Pdiag = [np.dot(vec[:self.getSize()], vec[self.getSize():]) for vec in self.getHilbertSpace()]
@@ -425,7 +425,9 @@ class EDFermiHubbardModel():
         be overwritten in subclasses.
         """
         return {"/edPrimal": [self.getPrimal()],
-                "/edMagnetization": [self.getMagnetization()]}
+                "/edMagnetization": [self.getMagnetization()],
+                "/edNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
+        }
 
     def writeData(self, which=None):
         """Writes the values of all physical quantities returned by

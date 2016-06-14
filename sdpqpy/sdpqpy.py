@@ -12,6 +12,11 @@ import math
 import os
 import pickle
 import time
+try:
+    zip
+except:
+    from itertools import izip
+    zip = izip
 from abc import ABCMeta, abstractmethod
 
 from sympy.physics.quantum import Dagger
@@ -730,6 +735,10 @@ class FermiHubbardModel(SecondQuantizedModel):
                  sum((Dagger(fd)*fd) for fd in self._fd))
         return self.expectationValue(s)
 
+    def getNumberOfDoubleOccupiedSites(self):
+        p = sum((Dagger(fd)*fd*Dagger(fu)*fu) for fu,fd in zip(self._fu,self._fd))
+        return self.expectationValue(p)
+    
     def getParticleNumber(self):
         N = (sum((Dagger(fu)*fu) for fu in self._fu) +
              sum((Dagger(fd)*fd) for fd in self._fd))
@@ -772,7 +781,10 @@ class FermiHubbardModel(SecondQuantizedModel):
     def getPhysicalQuantities(self):
         return {"/primal": [self.getPrimal()],
                 "/dual": [self.getPrimal()],
-                "/magnetization": [self.getMagnetization()]}
+                "/getParticleNumber": [self.getParticleNumber()],
+                "/magnetization": [self.getMagnetization()],
+                "/getNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
+        }
 
 
 class LongRangeQuadraticFermiModel(FermiHubbardModel):
