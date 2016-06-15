@@ -33,7 +33,7 @@ import itertools as it
 import functools as ft
 from scipy.sparse.linalg import eigsh
 import scipy.sparse as sps
-
+from scipy.special import binom
 
 def write_array(filename, array):
     file_ = open(filename, 'w')
@@ -143,7 +143,7 @@ class EDFermiHubbardModel():
             self.dimh = int(pow(2, 2*V))
             return it.product([0, 1], repeat = 2*V)
         else:
-            self.dimh = int(scipy.special.binom(2*V, self.n))
+            self.dimh = int(binom(2*V, self.n))
             #taken from http://stackoverflow.com/questions/6284396/permutations-with-unique-values
             def unique_permutations(elements):
                 if len(elements) == 1:
