@@ -600,6 +600,7 @@ class BoseHubbardModel(SecondQuantizedModel):
         self.U = 1
         self.mu = 0
         self.t = 0
+        self.t2 = 0
 
     def createHamiltonian(self):
         if self._periodic == -1:
@@ -608,13 +609,20 @@ class BoseHubbardModel(SecondQuantizedModel):
 
         hamiltonian = 0
         for r, br in enumerate(self._b):
-            hamiltonian += self.U/2.0*(Dagger(br)*br*(Dagger(br)*br-1))
+            if self.U != 0:
+                hamiltonian += self.U/2.0*(Dagger(br)*br*(Dagger(br)*br-1))
             if self.mu != 0:
                 hamiltonian += -self.mu*Dagger(br)*br
-            for s in get_neighbors(r, self._lattice_length,
-                                   self._lattice_width, self._periodic):
-                hamiltonian += -self.t*(Dagger(br)*self._b[s] +
-                                        Dagger(self._b[s])*br)
+            if self.t != 0:
+                for s in get_neighbors(r, self._lattice_length,
+                                       self._lattice_width, self._periodic):
+                    hamiltonian += -self.t*(Dagger(br)*self._b[s] +
+                                            Dagger(self._b[s])*br)
+            if self.t2 != 0:
+                for s in get_bext_neighbors(r, self._lattice_length,
+                                            self._lattice_width, 2, self._periodic):
+                    hamiltonian += -self.t2*(Dagger(br)*self._b[s] +
+                                            Dagger(self._b[s])*br)
         return hamiltonian
 
     def createSubstitutions(self):

@@ -58,7 +58,7 @@ class EDFermiHubbardModel():
             if self._lattice_width != 1:
                 raise Exception("Windowed models in more than 1D not implemented!")
             self.window_length = window_length
-        self.mu, self.t, self.h, self.U = 0, 0, 0, 0
+        self.mu, self.t, self.t2, self.h, self.U = 0, 0, 0, 0, 0
         self.n = None
         self.energy = None
         self.groundstate = None
@@ -79,6 +79,9 @@ class EDFermiHubbardModel():
             self.invalidateHamiltonian()
         if "t" in kwargs:
             self.t = kwargs.get("t")
+            self.invalidateHamiltonian()
+        if "t2" in kwargs:
+            self.t2 = kwargs.get("t2")
             self.invalidateHamiltonian()
         if "h" in kwargs:
             self.h = kwargs.get("h")
@@ -186,22 +189,35 @@ class EDFermiHubbardModel():
 
             #off-diagonal part
             for j1 in range(V):
-                for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
-                    j2 = j1+V
-                    k2 = k1+V
-                    sign, newvec = self.hop(j1,k1,vec)
-#                    print("hop",j1,"->",k1,vec,newvec)
-                    if newvec is not None:
-                        col = hdict[newvec]
-                        H[row,col] += -self.t*sign
-                        H[col,row] += -self.t*sign
-                    sign, newvec = self.hop(j2,k2,vec)
-#                    print("hop",j2,"->",k2,vec,newvec)
-                    if newvec is not None:
-                        col = hdict[newvec]
-                        H[row,col] += -self.t*sign
-                        H[col,row] += -self.t*sign
-                        
+                if self.t != 0:
+                    for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
+                        j2 = j1+V
+                        k2 = k1+V
+                        sign, newvec = self.hop(j1,k1,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t*sign
+                            H[col,row] += -self.t*sign
+                        sign, newvec = self.hop(j2,k2,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t*sign
+                            H[col,row] += -self.t*sign
+                if self.t2 != 0:
+                    for k1 in get_next_neighbors(j1, self.getLength(), width=self.getWidth(), distance=2, periodic=self._periodic):
+                        j2 = j1+V
+                        k2 = k1+V
+                        sign, newvec = self.hop(j1,k1,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t2*sign
+                            H[col,row] += -self.t2*sign
+                        sign, newvec = self.hop(j2,k2,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t2*sign
+                            H[col,row] += -self.t2*sign
+                            
         print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
         return H
 
