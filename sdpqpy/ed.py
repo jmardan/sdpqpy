@@ -317,16 +317,13 @@ class EDFermiHubbardModel():
         print("generating xmat entries")
         time0 = time.time()
         monomialvec = self.getMonomialVector(variables, monomials)
-        try:
-            pool = multiprocessing.Pool()
+        with multiprocessing.Pool() as pool:
             m = pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
-        finally:
             pool.close()
             pool.join()
         
         output = np.empty([len(m), len(m)])
-        try:
-            pool2 = multiprocessing.Pool()
+        with multiprocessing.Pool() as pool2:
             m2 = pool2.imap(npstardot, it.product(m, repeat=2))
             for i, out in enumerate(m2, 1):
                 row = (i-1) % len(m)
@@ -335,7 +332,6 @@ class EDFermiHubbardModel():
                     output[row, col] = output[col, row] = out
                     sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" in "+str(time.time()-time0)+" seconds ")
                     sys.stdout.flush()
-        finally:
             pool2.close()
             pool2.join()
             
@@ -416,14 +412,12 @@ class EDFermiHubbardModel():
         time0 = time.time()
         
         self.monomialvector = []
-        try:
-            pool = multiprocessing.Pool()
+        with multiprocessing.Pool() as pool:
             monomials = pool.imap(partial(expressionToMatrix, variables=list(variables), matrices=self.getAnnihiliationOperators()), flatmonomials)
             for i, monom in enumerate(monomials, 1):
                 self.monomialvector.append(monom)
                 sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
                 sys.stdout.flush()
-        finally:
             pool.close()
             pool.join()
 
@@ -476,19 +470,12 @@ class EDFermiHubbardModel():
     def projectorOntoHilbertSpace(self):
         V = self.getSize()
         P = sps.dok_matrix((int(pow(2, 2*V)), self.dimh), dtype=np.float32)
-        #print("P shape="+str(P.get_shape()))
         
         dict = self.getHdictFull()
         for row, vec in enumerate(self.getHilbertSpace()):
             col = dict[vec]
-            #print("vec="+str(vec)+" col="+str(col)+" row="+str(row))
             P[col,row] = 1
         
-
-        # for col, (vec, row) in enumerate(self.getHdictFull().iteritems()):
-        #     print("vec="+str(vec)+" col="+str(col)+" row="+str(row))
-        #     if sum(vec) == self.n:
-        #         P[row,col] = 1
         return P    
         
             
