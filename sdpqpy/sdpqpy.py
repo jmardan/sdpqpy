@@ -7,7 +7,6 @@ quantum lattice models in the context of ncpol2sdpa.
 """
 from __future__ import print_function, division
 import cmath
-import csv
 import math
 import os
 import pickle
@@ -20,16 +19,9 @@ except:
 from abc import ABCMeta, abstractmethod
 
 from sympy.physics.quantum import Dagger
-from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
-    generate_variables, bosonic_constraints, flatten, \
-    fermionic_constraints
-
-
-def write_array(filename, array):
-    file_ = open(filename, 'w')
-    writer = csv.writer(file_)
-    writer.writerow(array)
-    file_.close()
+from ncpol2sdpa import bosonic_constraints, fermionic_constraints, flatten, \
+    generate_variables, get_neighbors, get_next_neighbors, RdmHierarchy
+from .tools import write_array
 
 
 class PatchedRdmHierarchy(RdmHierarchy):
@@ -44,24 +36,20 @@ class PatchedRdmHierarchy(RdmHierarchy):
                             momentinequalities=None, momentequalities=None,
                             block_index=0, removeequalities=False):
         if block_index == 0 or block_index == self.constraint_starting_block:
-            if self.constraints_hash == hash(frozenset((str(inequalities),
-                                                        str(equalities),
-                                                        str(momentinequalities),
-                                                        str(momentequalities),
-                                                        str(removeequalities)))):
-                return
-            super(PatchedRdmHierarchy, self).\
-                process_constraints(inequalities=inequalities,
-                                    equalities=equalities,
-                                    momentinequalities=momentinequalities,
-                                    momentequalities=momentequalities,
-                                    block_index=block_index,
-                                    removeequalities=removeequalities)
-            self.constraints_hash = hash(frozenset((str(inequalities),
-                                                    str(equalities),
-                                                    str(momentinequalities),
-                                                    str(momentequalities),
-                                                    str(removeequalities))))
+            # This hashing is mighty expensive
+            new_hash = hash(frozenset((str(inequalities), str(equalities),
+                                       str(momentinequalities),
+                                       str(momentequalities),
+                                       str(removeequalities))))
+            if self.constraints_hash != new_hash:
+                super(PatchedRdmHierarchy, self).\
+                    process_constraints(inequalities=inequalities,
+                                        equalities=equalities,
+                                        momentinequalities=momentinequalities,
+                                        momentequalities=momentequalities,
+                                        block_index=block_index,
+                                        removeequalities=removeequalities)
+                self.constraints_hash = new_hash
 
 
 class LatticeModel:
@@ -288,8 +276,8 @@ class LatticeModel:
                     'dparam.intpnt_co_tol_pfeas': self._precision,
                 }
             elif self._precision is not None:
-                raise Exception(
-                    'Setting precision only implemented for mosek.')
+                raise NotImplementedError('Setting precision only implemented '
+                                          'for mosek.')
 
             self.__sdpRelaxation.solve(
                 solver=self._solver, solverparameters=solverparameters)
@@ -345,7 +333,7 @@ class SecondQuantizedModel(LatticeModel):
             self.window_length = lattice_length * lattice_width
         else:
             if self._lattice_width != 1:
-                raise Exception(
+                raise NotImplementedError(
                     "Windowed models in more than 1D not implemented!")
             self.window_length = window_length
 
@@ -453,10 +441,10 @@ class SecondQuantizedModel(LatticeModel):
 
     def getDensityDensityCorrelations(self):
         """Returns the density density correlation function. If necessary
-        soles the SDP first.
+        solves the SDP first.
         """
         if self._lattice_width != 1:
-            raise Exception("More than 1D not implemented!")
+            raise NotImplementedError("More than 1D not implemented!")
 
         if self._periodic or self._periodic == 1:
             bext = self._b + [bi for bi in self._b]
@@ -483,10 +471,10 @@ class SecondQuantizedModel(LatticeModel):
         return [f(r) for r in range(0, self._lattice_length)]
 
     def gtwo(self):
-        """Returns the g_2 function. If necessary soles the SDP first.
+        """Returns the g_2 function. If necessary solves the SDP first.
         """
         if self._lattice_width != 1:
-            raise Exception("More than 1D not implemented!")
+            raise NotImplementedError("More than 1D not implemented!")
 
         if self._periodic or self._periodic == 1:
             bext = self._b + [bi for bi in self._b]
@@ -512,7 +500,7 @@ class SecondQuantizedModel(LatticeModel):
         return [f(r) for r in range(0, self._lattice_length)]
 
     def getMomentumDistribution(self):
-        """Returns the momentum distribution. If necessary soles the SDP first.
+        """Returns the momentum distribution. If necessary solves the SDP first.
         """
         def f(k):
             n = 0
@@ -526,13 +514,13 @@ class SecondQuantizedModel(LatticeModel):
                                int(self._lattice_length / 2 + 1))]
 
     def getParticleNumber(self):
-        """Returns the total particle number. If necessary soles the SDP first.
+        """Returns the total particle number. If necessary solves the SDP first.
         """
         return self.expectationValue(sum(Dagger(bj) * bj for bj in self._b))
 
     def expectationValue(self, operator):
         """Returns the expectation value of the given operator. If necessary
-        soles the SDP first.
+        solves the SDP first.
         """
         if self.getSdp() is None or self.getSdp().status == "unsolved":
             self.solve()
@@ -623,8 +611,8 @@ class BoseHubbardModel(SecondQuantizedModel):
 
     def createHamiltonian(self):
         if self._periodic == -1:
-            raise Exception("Antiperiodic boundary conditions not "
-                            "implemented!")
+            raise NotImplementedError("Antiperiodic boundary conditions not "
+                                      "implemented!")
 
         hamiltonian = 0
         for r, br in enumerate(self._b):
@@ -710,7 +698,7 @@ class FermiHubbardModel(SecondQuantizedModel):
 
     def createHamiltonian(self):
         if self._periodic == -1:
-            raise Exception("Anti periodic not implemented!")
+            raise NotImplementedError("Anti periodic not implemented!")
             # fuext = self._fu + [-fi for fi in self._fu]
             # fdext = self._fd + [-fi for fi in self._fd]
         else:
@@ -838,7 +826,7 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
 
     def createHamiltonian(self):
         if self._lattice_width != 1:
-            raise Exception("Higher dimension not implemented!")
+            raise NotImplementedError("Higher dimension not implemented!")
 
         if self._periodic or self._periodic == 1:
             bext = self._b + [bi for bi in self._b]

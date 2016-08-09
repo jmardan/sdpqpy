@@ -7,7 +7,6 @@ obtained from the SDP numerics.
 """
 from __future__ import print_function, division
 from abc import ABCMeta
-import csv
 import functools as ft
 import itertools as it
 import multiprocessing
@@ -24,13 +23,7 @@ from sympy import Pow, Mul, Add, Integer, Float
 from sympy.core.numbers import NegativeOne
 from sympy.physics.quantum import Dagger
 from sympy.physics.quantum.operator import Operator
-
-
-def write_array(filename, array):
-    file_ = open(filename, 'w')
-    writer = csv.writer(file_)
-    writer.writerow(array)
-    file_.close()
+from .tools import unique_permutations, write_array
 
 
 class EDFermiHubbardModel():
@@ -47,8 +40,8 @@ class EDFermiHubbardModel():
             self.window_length = lattice_length * lattice_width
         else:
             if self._lattice_width != 1:
-                raise Exception(
-                    "Windowed models in more than 1D not implemented!")
+                raise NotImplementedError("Windowed models in more than 1D not"
+                                          " implemented!")
             self.window_length = window_length
         self.mu, self.t, self.t2, self.h, self.U = 0, 0, 0, 0, 0
         self.n = None
@@ -109,15 +102,15 @@ class EDFermiHubbardModel():
         the Hilbert space.
         """
         if "localNmax" in kwargs and self.localNmax != kwargs.get("localNmax"):
-            raise Exception("Not implemented!")
+            raise NotImplementedError("Not implemented!")
         if "n" in kwargs and self.n != kwargs.get("n"):
             self.invalidateHilbertSpace()
             self.n = int(kwargs.get("n"))
 
         if "nmin" in kwargs and self.nmin != kwargs.get("nmin"):
-            raise Exception("Not implemented!")
+            raise NotImplementedError("Not implemented!")
         if "nmax" in kwargs and self.nmax != kwargs.get("nmax"):
-            raise Exception("Not implemented!")
+            raise NotImplementedError("Not implemented!")
 
     def getHamiltonian(self):
         """Cached getter mehtod that calls createHamiltonian() if necessary.
@@ -138,26 +131,12 @@ class EDFermiHubbardModel():
             return it.product([0, 1], repeat=2 * V)
         else:
             self.dimh = int(binom(2 * V, self.n))
-            # taken from
-            # http://stackoverflow.com/questions/6284396/permutations-with-unique-values
-
-            def unique_permutations(elements):
-                if len(elements) == 1:
-                    yield (elements[0],)
-                else:
-                    unique_elements = set(elements)
-                    for first_element in unique_elements:
-                        remaining_elements = list(elements)
-                        remaining_elements.remove(first_element)
-                        for sub_permutation in unique_permutations(remaining_elements):
-                            yield (first_element,) + sub_permutation
-
             return unique_permutations(list(it.chain(it.repeat(0, 2 * V - int(self.n)),
                                                      it.repeat(1, int(self.n)))))
 
     def createHamiltonian(self):
         if self._periodic == -1:
-            raise Exception("Not implemented!")
+            raise NotImplementedError("Not implemented!")
 
         time0 = time.time()
 
@@ -293,7 +272,7 @@ class EDFermiHubbardModel():
             self.solve()
         Mdiag = [0.5 * (sum(vec[:self.getSize()]) - sum(vec[self.getSize():]))
                  for vec in self.getHilbertSpace()]
-        #print('Mdiag='+str(Mdiag)+" self.groundstate="+str(self.groundstate))
+        # print('Mdiag='+str(Mdiag)+" self.groundstate="+str(self.groundstate))
         return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
 
     def getNumberOfDoubleOccupiedSites(self):
@@ -325,7 +304,7 @@ class EDFermiHubbardModel():
         time0 = time.time()
         monomialvec = self.getMonomialVector(variables, monomials)
         with multiprocessing.Pool() as pool:
-            # this makes keyboard interrup work, see:
+            # this makes keyboard interrupt work, see:
             # http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
             m = pool.map_async(
                 ft.partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF)
@@ -469,7 +448,7 @@ class EDFermiHubbardModel():
 
     def hop(self, j, k, vec):
         if j == k:
-            raise Exception('j=k not implemented')
+            raise NotImplementedError('j=k not implemented')
         if vec[j] == 0 or vec[k] == 1:
             return None, None
         else:
@@ -521,7 +500,7 @@ def expressionToMatrix(expr, variables=None, matrices=None):
             return ft.reduce(np.add, (evalmonomial(arg, dictionary)
                                       for arg in expr.args))
         else:
-            raise Exception("unknown sympy func: " + str(expr.func))
+            raise ValueError("unknown sympy func: " + str(expr.func))
 
     dictionary = dict(zip(variables, matrices))
     try:
