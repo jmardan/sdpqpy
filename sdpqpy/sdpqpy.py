@@ -265,7 +265,7 @@ class LatticeModel:
             print('solving SDP with '+str(self._solver))
             time0 = time.time()
             solverparameters = None
-            if self._precision != None and self._solver == "mosek":
+            if self._precision is not None and self._solver == "mosek":
                 solverparameters={
                     'dparam.intpnt_co_tol_rel_gap': self._precision,
                     'dparam.intpnt_co_tol_mu_red': self._precision,
@@ -277,7 +277,7 @@ class LatticeModel:
                     'dparam.intpnt_co_tol_infeas': self._precision,
                     'dparam.intpnt_co_tol_pfeas': self._precision,
                 }
-            elif self._precision != None:
+            elif self._precision is not None:
                 raise Exception('Setting precision only implemented for mosek.')
             
             self.__sdpRelaxation.solve(solver=self._solver, solverparameters=solverparameters)
@@ -536,7 +536,7 @@ class SecondQuantizedModel(LatticeModel):
         """Writes the values of all physical quantities returned by
         getPhysicalQuantities() to the respective files.
         """
-        if which==None:
+        if which is None:
             which = self.getPhysicalQuantities().items()
         for key, data in iter(which):
             write_array(self._outputDir + key + self.getSuffix() + ".csv",

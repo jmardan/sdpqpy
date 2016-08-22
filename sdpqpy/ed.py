@@ -444,7 +444,7 @@ class EDFermiHubbardModel():
         """Writes the values of all physical quantities returned by
         getPhysicalQuantities() to the respective files.
         """
-        if which==None:
+        if which is None:
             which = self.getPhysicalQuantities().items()
         for key, data in iter(which):
             write_array(self._outputDir + key + self.getSuffix() + ".csv",
