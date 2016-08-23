@@ -404,6 +404,7 @@ class SecondQuantizedModel(LatticeModel):
                                               inequalities=inequalities,
                                               momentinequalities=momentinequalities)
             print("succesfully recycled an old solution")
+            self.pickleSdp(sdpRelaxation)
         except (KeyboardInterrupt, SystemExit):
             raise
         except:

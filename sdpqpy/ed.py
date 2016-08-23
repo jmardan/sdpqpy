@@ -216,21 +216,22 @@ class EDFermiHubbardModel():
         return self._lattice_width
 
     def solve(self):
-        H = self.getHamiltonian()
-
         try:
-            with open(self._outputDir + "/" + "edEnergy" +
+            print('trying to load pickled ED solution')
+            with open(self._outputDir + "/" +"edEnergy" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 self.energy = pickle.load(handle)
             with open(self._outputDir + "/" + "edGreoundState" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 self.groundstate = pickle.load(handle)
-            print("Hamiltonian and ground state energy succesfully unpickled")
+            print("ground state and ground state energy succesfully unpickled")
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            if H.shape == (1, 1):
-                self.energy, self.groundstate = H[0, 0], [1]
+            print('no solution found')
+            H = self.getHamiltonian()
+            if H.shape == (1,1):
+                self.energy, self.groundstate = H[0,0], [1]
             else:
                 try:
                     time0 = time.time()
