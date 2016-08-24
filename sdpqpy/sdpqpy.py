@@ -405,7 +405,7 @@ class SecondQuantizedModel(LatticeModel):
         except:
             #We have to generate from scatch
             time0 = time.time()
-            sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=1, parallel=True)
+            sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=2, parallel=True)
             if self._level == -1:
                 print("creating custom monomial vectors as level is " +
                       str(self._level))
