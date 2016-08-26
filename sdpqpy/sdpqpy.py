@@ -44,12 +44,12 @@ class PatchedRdmHierarchy(RdmHierarchy):
                             momentinequalities=None, momentequalities=None,
                             block_index=0, removeequalities=False):
         if block_index == 0 or block_index == self.constraint_starting_block:
-            if self.constraints_hash == hash(frozenset((str(inequalities),str(equalities),str(momentinequalities),str(momentequalities),str(removeequalities)))):
+            if self.constraints_hash == hash(frozenset((str(inequalities),str(equalities),str(momentequalities),str(momentinequalities),str(momentequalities),str(removeequalities)))):
                 return
             super(PatchedRdmHierarchy, self).process_constraints(inequalities=inequalities, equalities=equalities,
                             momentinequalities=momentinequalities, momentequalities=momentequalities,
                             block_index=block_index, removeequalities=removeequalities)    
-            self.constraints_hash = hash(frozenset((str(inequalities),str(equalities),str(momentinequalities),str(momentequalities),str(removeequalities))))
+            self.constraints_hash = hash(frozenset((str(inequalities),str(equalities),str(momentequalities),str(momentinequalities),str(momentequalities),str(removeequalities))))
 
         
         
@@ -364,27 +364,21 @@ class SecondQuantizedModel(LatticeModel):
             sdpRelaxation = outdatedSdpRelaxation
 
         equalities = []
+        momentequalities = []
         inequalities = []
         momentinequalities = []
         if self.localNmax is not None:
             inequalities.extend(self.localNmax-Dagger(br)*br
                                 for br in self._b)
         if self.n is not None:
-            momentinequalities.append(self.n-sum(Dagger(br)*br
+            momentequalities.append(self.n-sum(Dagger(br)*br
                                                  for br in self._b))
-            momentinequalities.append(sum(Dagger(br)*br
-                                          for br in self._b)-self.n)
 
             for fr in self._b:
-                # momentinequalities.append((fr*self.n-fr*sum(Dagger(br)*br for br in self._b)))
-                # momentinequalities.append((Dagger(fr)*sum(Dagger(br)*br for br in self._b)-Dagger(fr)*self.n))
                 op1 = Dagger(fr)*fr
                 op2 = fr*Dagger(fr)
-                momentinequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
-                momentinequalities.append((op1*sum(Dagger(br)*br for br in self._b)-op1*self.n))
-                momentinequalities.append((op2*self.n-op2*sum(Dagger(br)*br for br in self._b)))
-                momentinequalities.append((op2*sum(Dagger(br)*br for br in self._b)-op2*self.n))
-
+                momentequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
+                momentequalities.append((op2*self.n-op2*sum(Dagger(br)*br for br in self._b)))
 
         if self.nmax is not None:
             momentinequalities.append(self.nmax-sum(Dagger(br)*br for br in self._b))
@@ -396,6 +390,7 @@ class SecondQuantizedModel(LatticeModel):
             # sdpRelaxation is not None and the number of constaints matches
             print("trying to recycle an old solution")
             sdpRelaxation.process_constraints(equalities=equalities,
+                                              momentequalities=momentequalities,
                                               inequalities=inequalities,
                                               momentinequalities=momentinequalities)
             print("succesfully recycled an old solution")
@@ -417,6 +412,7 @@ class SecondQuantizedModel(LatticeModel):
 
             sdpRelaxation.get_relaxation(self._level,
                                          equalities=equalities,
+                                         momentequalities=momentequalities,
                                          inequalities=inequalities,
                                          momentinequalities=momentinequalities,
                                          substitutions=self.getSubstitutions(),
