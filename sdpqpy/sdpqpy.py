@@ -278,7 +278,7 @@ class LatticeModel:
                     'dparam.intpnt_co_tol_pfeas': self._precision,
                 }
             elif self._precision is not None:
-                raise Exception('Setting precision only implemented for mosek.')
+                print("Warning: Setting precision only implemented for mosek")
             
             self.__sdpRelaxation.solve(solver=self._solver, solverparameters=solverparameters)
             print("SDP solved in", time.time()-time0, "seconds")
