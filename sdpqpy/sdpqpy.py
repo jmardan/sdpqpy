@@ -60,7 +60,7 @@ class LatticeModel:
     """
     __metaclass__ = ABCMeta
 
-    def __init__(self, lattice_length, lattice_width, solver, outputDir):
+    def __init__(self, lattice_length, lattice_width, solver, outputDir, removeequalities=False):
         self._lattice_length = lattice_length
         self._lattice_width = lattice_width
         self._solver = solver
@@ -70,6 +70,7 @@ class LatticeModel:
         self.__outdatedSdpRelaxation = None
         self.__hamiltonian = None
         self._precision = None
+        self._removeequalities = removeequalities
 
     @abstractmethod
     def getSuffix(self):
@@ -323,9 +324,9 @@ class SecondQuantizedModel(LatticeModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic, window_length):
+                 periodic, window_length, removeequalities):
         LatticeModel.__init__(self, lattice_length, lattice_width, solver,
-                              outputDir)
+                              outputDir, removeequalities)
         self._b = generate_variables('b', lattice_length * lattice_width,
                                      commutative=False)
         self._level = -1
@@ -421,7 +422,7 @@ class SecondQuantizedModel(LatticeModel):
                                          momentinequalities=momentinequalities,
                                          substitutions=self.getSubstitutions(),
                                          extramonomials=monomials,
-                                         removeequalities=True)
+                                         removeequalities=self._removeequalities)
             print('SDP of lattice %dx%d generated in %0.2f seconds' %
                   (self._lattice_length, self._lattice_width,
                    (time.time()-time0)))
@@ -594,10 +595,10 @@ class BoseHubbardModel(SecondQuantizedModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic=0, window_length=0):
+                 periodic=0, window_length=0, removeequalities=False):
         SecondQuantizedModel.__init__(self, lattice_length, lattice_width,
                                       solver, outputDir, periodic,
-                                      window_length)
+                                      window_length, removeequalities)
         self.U = 1
         self.mu = 0
         self.t = 0
@@ -676,10 +677,10 @@ class FermiHubbardModel(SecondQuantizedModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic=0, window_length=0):
+                 periodic=0, window_length=0, removeequalities=False):
         SecondQuantizedModel.__init__(self, lattice_length, lattice_width,
                                       solver, outputDir, periodic,
-                                      window_length)
+                                      window_length, removeequalities)
         self._fu = generate_variables('fu', lattice_length * lattice_width, commutative=False)
         self._fd = generate_variables('fd', lattice_length * lattice_width, commutative=False)
         self._b = flatten([self._fu, self._fd])
@@ -800,10 +801,10 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic=0):
+                 periodic=0, removeequalities):
         FermiHubbardModel.__init__(self, lattice_length, lattice_width,
                                    solver, outputDir, periodic,
-                                   window_length=0)
+                                   window_length=0, removeequalities)
         self.mu = 0
         self.t = 0
         self.Delta = 0
