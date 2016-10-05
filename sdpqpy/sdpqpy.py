@@ -801,10 +801,10 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic=0, removeequalities):
+                 periodic=0, removeequalities=False):
         FermiHubbardModel.__init__(self, lattice_length, lattice_width,
                                    solver, outputDir, periodic,
-                                   window_length=0, removeequalities)
+                                   window_length=0, removeequalities=removeequalities)
         self.mu = 0
         self.t = 0
         self.Delta = 0
