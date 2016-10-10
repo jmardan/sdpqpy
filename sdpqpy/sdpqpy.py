@@ -281,6 +281,7 @@ class LatticeModel:
             elif self._precision is not None:
                 print("Warning: Setting precision only implemented for mosek")
             if self._solver == "cvxpy":
+                import cvxpy
                 solverparameters={
                     "solver": cvxpy.SCS
                 }
@@ -324,7 +325,7 @@ class SecondQuantizedModel(LatticeModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic, window_length, removeequalities):
+                 periodic, window_length, removeequalities, parallel=True):
         LatticeModel.__init__(self, lattice_length, lattice_width, solver,
                               outputDir, removeequalities)
         self._b = generate_variables('b', lattice_length * lattice_width,
@@ -341,6 +342,7 @@ class SecondQuantizedModel(LatticeModel):
             if self._lattice_width != 1:
                 raise Exception("Windowed models in more than 1D not implemented!")
             self.window_length = window_length
+        self._parallel = parallel
 
     def createSdp(self, outdatedSdpRelaxation=None):
         """Retuns an appropriate SDP representing a relaxation of the specified
@@ -405,7 +407,7 @@ class SecondQuantizedModel(LatticeModel):
         except:
             #We have to generate from scatch
             time0 = time.time()
-            sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=2, parallel=True)
+            sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=2, parallel=self._parallel)
             if self._level == -1:
                 print("creating custom monomial vectors as level is " +
                       str(self._level))
@@ -595,10 +597,10 @@ class BoseHubbardModel(SecondQuantizedModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic=0, window_length=0, removeequalities=False):
+                 periodic=0, window_length=0, removeequalities=False, parallel=True):
         SecondQuantizedModel.__init__(self, lattice_length, lattice_width,
                                       solver, outputDir, periodic,
-                                      window_length, removeequalities)
+                                      window_length, removeequalities, parallel=parallel)
         self.U = 1
         self.mu = 0
         self.t = 0
@@ -677,10 +679,10 @@ class FermiHubbardModel(SecondQuantizedModel):
     __metaclass__ = ABCMeta
 
     def __init__(self, lattice_length, lattice_width, solver, outputDir,
-                 periodic=0, window_length=0, removeequalities=False):
+                 periodic=0, window_length=0, removeequalities=False, parallel=True):
         SecondQuantizedModel.__init__(self, lattice_length, lattice_width,
                                       solver, outputDir, periodic,
-                                      window_length, removeequalities)
+                                      window_length, removeequalities, parallel=parallel)
         self._fu = generate_variables('fu', lattice_length * lattice_width, commutative=False)
         self._fd = generate_variables('fd', lattice_length * lattice_width, commutative=False)
         self._b = flatten([self._fu, self._fd])
