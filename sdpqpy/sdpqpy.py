@@ -48,11 +48,11 @@ class PatchedRdmHierarchy(RdmHierarchy):
                 return
             super(PatchedRdmHierarchy, self).process_constraints(inequalities=inequalities, equalities=equalities,
                             momentinequalities=momentinequalities, momentequalities=momentequalities,
-                            block_index=block_index, removeequalities=removeequalities)    
+                            block_index=block_index, removeequalities=removeequalities)
             self.constraints_hash = hash(frozenset((str(inequalities),str(equalities),str(momentequalities),str(momentinequalities),str(momentequalities),str(removeequalities))))
 
-        
-        
+
+
 
 class LatticeModel:
     """A class to represent an abstract quantum lattice model whose Hamiltonian
@@ -152,7 +152,7 @@ class LatticeModel:
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
         except (KeyboardInterrupt, SystemExit):
-            raise 
+            raise
         except:
             with open(self._outputDir + "/" +"sdpRelaxation" +
                       self.getShortSuffix() + ".pickle", 'rb') as handle:
@@ -285,7 +285,7 @@ class LatticeModel:
                 solverparameters={
                     "solver": cvxpy.SCS
                 }
-                
+
             self.__sdpRelaxation.solve(solver=self._solver, solverparameters=solverparameters)
             print("SDP solved in", time.time()-time0, "seconds")
 
@@ -294,7 +294,7 @@ class LatticeModel:
     def setPrecision(self, precision):
         self._precision = precision
 
-            
+
     def getEnergy(self):
         """Returns the energy (primal of the SDP) of the system.
         """
@@ -363,7 +363,7 @@ class SecondQuantizedModel(LatticeModel):
             else:
                 print('succesfully loaded an unsolved SDP')
         except (KeyboardInterrupt, SystemExit):
-            raise 
+            raise
         except (IOError, EOFError):
             print('no pickled SDP found, generating SDP')
 
@@ -383,9 +383,7 @@ class SecondQuantizedModel(LatticeModel):
 
             for fr in self._b:
                 op1 = Dagger(fr)*fr
-                op2 = fr*Dagger(fr)
                 momentequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
-                momentequalities.append((op2*self.n-op2*sum(Dagger(br)*br for br in self._b)))
 
         if self.nmax is not None:
             momentinequalities.append(self.nmax-sum(Dagger(br)*br for br in self._b))
@@ -403,7 +401,7 @@ class SecondQuantizedModel(LatticeModel):
             print("succesfully recycled an old solution")
             self.pickleSdp(sdpRelaxation)
         except (KeyboardInterrupt, SystemExit):
-            raise 
+            raise
         except:
             #We have to generate from scatch
             time0 = time.time()
@@ -750,7 +748,7 @@ class FermiHubbardModel(SecondQuantizedModel):
     def getNumberOfDoubleOccupiedSites(self):
         p = sum((Dagger(fd)*fd*Dagger(fu)*fu) for fu,fd in zip(self._fu,self._fd))
         return self.expectationValue(p)
-    
+
     def getParticleNumber(self):
         N = (sum((Dagger(fu)*fu) for fu in self._fu) +
              sum((Dagger(fd)*fd) for fd in self._fd))
