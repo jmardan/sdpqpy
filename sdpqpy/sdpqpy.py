@@ -343,6 +343,7 @@ class SecondQuantizedModel(LatticeModel):
                 raise Exception("Windowed models in more than 1D not implemented!")
             self.window_length = window_length
         self._parallel = parallel
+        self._debug_mode = False
 
     def createSdp(self, outdatedSdpRelaxation=None):
         """Retuns an appropriate SDP representing a relaxation of the specified
@@ -350,28 +351,32 @@ class SecondQuantizedModel(LatticeModel):
         If this fails it generates a new SDP.
         """
         sdpRelaxation = None
-        print('trying to load pickled SDP for %dx%d lattice' %
-              (self._lattice_length, self._lattice_width))
-        try:
-            sdpRelaxation = self.loadSdp()
-            if sdpRelaxation is not None and \
-                    sdpRelaxation.status != "unsolved":
-                # We assume that we got a solved instance with all paramters
-                # correctly set and return that
-                print('succesfully loaded a solved SDP')
-                return sdpRelaxation
-            else:
-                print('succesfully loaded an unsolved SDP')
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except (IOError, EOFError):
-            print('no pickled SDP found, generating SDP')
+        if not self._debug_mode:
+            print('trying to load pickled SDP for %dx%d lattice' %
+                  (self._lattice_length, self._lattice_width))
+            try:
+                sdpRelaxation = self.loadSdp()
+                if sdpRelaxation is not None and \
+                        sdpRelaxation.status != "unsolved":
+                    # We assume that we got a solved instance with all paramters
+                    # correctly set and return that
+                    print('succesfully loaded a solved SDP')
+                    return sdpRelaxation
+                else:
+                    print('succesfully loaded an unsolved SDP')
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except (IOError, EOFError):
+                print('no pickled SDP found, generating SDP')
+        else:
+            print('debug mode, generating SDP')
 
         if sdpRelaxation is None:
             sdpRelaxation = outdatedSdpRelaxation
 
         equalities = []
         momentequalities = []
+        momentsubstitutions = {}
         inequalities = []
         momentinequalities = []
         if self.localNmax is not None:
@@ -379,8 +384,7 @@ class SecondQuantizedModel(LatticeModel):
                                 for br in self._b)
         if self.n is not None:
             momentequalities.append(self.n-sum(Dagger(br)*br
-                                                 for br in self._b))
-
+                                               for br in self._b))
             for fr in self._b:
                 op1 = Dagger(fr)*fr
                 momentequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
@@ -418,6 +422,7 @@ class SecondQuantizedModel(LatticeModel):
             sdpRelaxation.get_relaxation(self._level,
                                          equalities=equalities,
                                          momentequalities=momentequalities,
+                                         momentsubstitutions=momentsubstitutions,
                                          inequalities=inequalities,
                                          momentinequalities=momentinequalities,
                                          substitutions=self.getSubstitutions(),
