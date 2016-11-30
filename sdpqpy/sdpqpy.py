@@ -383,10 +383,11 @@ class SecondQuantizedModel(LatticeModel):
             inequalities.extend(self.localNmax-Dagger(br)*br
                                 for br in self._b)
         if self.n is not None:
-            momentequalities.append(self.n-sum(Dagger(br)*br
-                                               for br in self._b))
-            for fr in self._b:
+            # momentsubstitutions[Dagger(self._b[0])*self._b[0]] = self.n-sum(Dagger(br)*br for br in self._b[1:])
+            momentequalities.append(self.n-sum(Dagger(br)*br for br in self._b))
+            for fr in self._b[1:]:
                 op1 = Dagger(fr)*fr
+                # momentsubstitutions[op1*Dagger(self._b[0])*self._b[0]] = (op1*self.n-op1*sum(Dagger(br)*br for br in self._b[1:])).expand()
                 momentequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
 
         if self.nmax is not None:
@@ -409,7 +410,7 @@ class SecondQuantizedModel(LatticeModel):
         except:
             #We have to generate from scatch
             time0 = time.time()
-            sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=2, parallel=self._parallel)
+            sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=0, parallel=self._parallel)
             if self._level == -1:
                 print("creating custom monomial vectors as level is " +
                       str(self._level))
@@ -418,7 +419,6 @@ class SecondQuantizedModel(LatticeModel):
                 print("generating a standard SDP with level " +
                       str(self._level))
                 monomials = None
-
             sdpRelaxation.get_relaxation(self._level,
                                          equalities=equalities,
                                          momentequalities=momentequalities,
