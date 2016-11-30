@@ -280,12 +280,6 @@ class LatticeModel:
                 }
             elif self._precision is not None:
                 print("Warning: Setting precision only implemented for mosek")
-            if self._solver == "cvxpy":
-                import cvxpy
-                solverparameters={
-                    "solver": cvxpy.SCS
-                }
-
             self.__sdpRelaxation.solve(solver=self._solver, solverparameters=solverparameters)
             print("SDP solved in", time.time()-time0, "seconds")
 
