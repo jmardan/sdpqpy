@@ -443,20 +443,43 @@ class EDFermionicLatticeModel(EDLatticeModel):
             hdict[vec] = row
         return hdict
 
-    def hop(self, j, k, vec):
+    def hop(self, j, k, vec, length=0, width=1, periodic=0):
         if j==k:
             raise Exception('j=k not implemented')
+        if width!=1:
+            raise Exception('only 1D implemented')
+
+        if periodic==0 and ( j>=len(vec) or j>=len(vec) or j<0 or k<0 or (length!=0 and (j>=length or j>=length) ) ):
+            return None, None
+        elif periodic==1:
+            sign = 1
+            while j<0: j+=length
+            while k<0: k+=length
+            j = j % length
+            k = k % length
+        elif periodic==-1:
+            sign = 1
+            if j/length % 2 == 1:
+                sign *= -1
+            if k/length % 2 == 1:
+                sign *= -1
+            while j<0: j+=length
+            while k<0: k+=length
+            j = j % length
+            k = k % length            
+        else:
+            raise Exception('not implemented')
+        
         if vec[j] == 0 or vec[k] == 1:
             return None, None
         else:
             newvec = list(vec)
             newvec[j] = 0
             newvec[k] = 1
-            sign = 1
             if (j<k and sum(vec[j+1:k]) % 2 == 1):
-                sign = -1
+                sign *= -1
             elif (j>k and sum(vec[k+1:j]) % 2 == 1):
-                sign = -1
+                sign *= -1
                 
             return sign, tuple(newvec)
 
@@ -617,7 +640,140 @@ class EDFermiHubbardModel(EDFermionicLatticeModel):
                 "/edMagnetization": [self.getMagnetization()],
                 "/edNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
         }
+
+
+
+
+class EDKitaevChain(EDFermionicLatticeModel):
+    __metaclass__ = ABCMeta
+        
+    def __init__(self, lattice_length, lattice_width, outputDir,
+                 periodic=0, window_length=0, spin=0.5):
+        super(EDFermiHubbardModel, self).__init__(lattice_length, lattice_width, outputDir,
+                                                  periodic, window_length, spin)
+        self.mu, self.t, self.Delta, self.alpha, self.V = 0, 0, 0, 0, 0
+        
+    def setParameters(self, **kwargs):
+        super(EDFermiHubbardModel, self).setParameters(**kwargs)
+        if "mu" in kwargs:
+            self.mu = kwargs.get("mu")
+            self.invalidateHamiltonian()
+        if "t" in kwargs:
+            self.t = kwargs.get("t")
+            self.invalidateHamiltonian()
+        if "Delta" in kwargs:
+            self.Delta = kwargs.get("Delta")
+            self.invalidateHamiltonian()
+        if "alpha" in kwargs:
+            self.alpha = kwargs.get("alpha")
+            self.invalidateHamiltonian()
+        if "V" in kwargs:
+            self.V = kwargs.get("V")
+            self.invalidateHamiltonian()        
             
+    def createHamiltonian(self):
+        if self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 0 implemented!")
+        if self.getWidth() != 1:
+            raise Exception("Only 1D implemented!")
+        
+        time0 = time.time()        
+            
+        V = self.getSize()        
+
+        #reverse lookup table for the elements of the hilbet space to efficiently
+        #generate the off diagonal part of the Hamiltonian
+        hdict = {}
+        for row, vec in enumerate(self.getHilbertSpace()):
+            hdict[vec] = row
+
+        H = sps.dok_matrix((self.dimh, self.dimh), dtype=np.float32)
+        
+        for row, vec in enumerate(self.getHilbertSpace()):
+            #vecu = vec[:V]
+            #vecd = vec[V:]
+
+            #diagonal part
+            entry = 0
+            if self.mu != 0:
+                entry += - self.mu * sum(vec)
+            if self.V != 0:
+                entry += self.V * sum(vec[i-1] vec[i] for i in range(V))
+            H[row,row] = entry
+                
+            #off-diagonal part
+            for j1 in range(V):
+                if self.t != 0:
+                    #for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
+                    with j1+1 as k1:    
+                        sign, newvec = self.hop(j1,k1,vec,length=self.getLength(),periodic=self._periodic)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t*sign
+                            H[col,row] += -self.t*sign
+                        # if self.spin == 0.5:
+                        #     j2 = j1+V
+                        #     k2 = k1+V
+                        #     sign, newvec = self.hop(j2,k2,vec)
+                        #     if newvec is not None:
+                        #         col = hdict[newvec]
+                        #         H[row,col] += -self.t*sign
+                        #         H[col,row] += -self.t*sign
+                # if self.t2 != 0:
+                #     for k1 in get_next_neighbors(j1, self.getLength(), width=self.getWidth(), distance=2, periodic=self._periodic):
+                #         sign, newvec = self.hop(j1,k1,vec)
+                #         if newvec is not None:
+                #             col = hdict[newvec]
+                #             H[row,col] += -self.t2*sign
+                #             H[col,row] += -self.t2*sign
+                #         # if self.spin == 0.5:
+                #         #     j2 = j1+V
+                #         #     k2 = k1+V
+                #         #     sign, newvec = self.hop(j2,k2,vec)
+                #         #     if newvec is not None:
+                #         #         col = hdict[newvec]
+                #         #         H[row,col] += -self.t2*sign
+                #         #         H[col,row] += -self.t2*sign
+                            
+        print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
+        return H
+        
+    def getSuffix(self):
+        suffix = "_lat=" + str(self._lattice_length) + "x" + \
+                 str(self._lattice_width) + "_periodic=" + str(self._periodic)\
+                 + "_mu=" + str(self.mu) + "_t=" + str(self.t) + "_h=" + \
+                 str(self.h) + "_U="+str(self.U)
+        if self.n is not None:
+            suffix += "_n="+str(self.n)
+        if self.nmax is not None:
+            suffix += "_nmax="+str(self.nmax)
+        if self.nmin is not None:
+            suffix += "_nmin="+str(self.nmin)
+        if self.localNmax is not None:
+            suffix += "_localnmax="+str(self.localNmax)
+        # if self._periodic:
+        #     suffix += "_periodic=" + str(self._periodic)
+        if self.window_length != self._lattice_length * self._lattice_width:
+            suffix += "_window=" + str(self.window_length)
+        if self.mu != 0:
+            suffix += "_mu=" + str(self.mu)
+        if self.spin != 0.5:
+            suffix += "_spin=" + str(self.spin)
+        suffix += "_level="+str(self._level)
+        return suffix
+
+    def getPhysicalQuantities(self):
+        """Returns a dictionaly of names and corresponding functions of all
+        physical quantities that are to be written in writeData(). This should
+        be overwritten in subclasses.
+        """
+        return {"/edPrimal": [self.getPrimal()],
+                "/edMagnetization": [self.getMagnetization()],
+                "/edNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
+        }
+    
 
 
 
