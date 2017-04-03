@@ -42,7 +42,7 @@ def write_array(filename, array):
     file_.close()
     
 
-class EDFermiHubbardModel():
+class EDLatticeModel():
     __metaclass__ = ABCMeta
         
     def __init__(self, lattice_length, lattice_width, outputDir,
@@ -58,7 +58,6 @@ class EDFermiHubbardModel():
             if self._lattice_width != 1:
                 raise Exception("Windowed models in more than 1D not implemented!")
             self.window_length = window_length
-        self.mu, self.t, self.t2, self.h, self.U = 0, 0, 0, 0, 0
         self.n = None
         self.energy = None
         self.groundstate = None
@@ -71,24 +70,7 @@ class EDFermiHubbardModel():
         self.nmin = None
         self.annihiliationOperators = None
         self.monomialvector = None
-        self.hdictfull = None
-        
-    def setParameters(self, **kwargs):
-        if "mu" in kwargs:
-            self.mu = kwargs.get("mu")
-            self.invalidateHamiltonian()
-        if "t" in kwargs:
-            self.t = kwargs.get("t")
-            self.invalidateHamiltonian()
-        if "t2" in kwargs:
-            self.t2 = kwargs.get("t2")
-            self.invalidateHamiltonian()
-        if "h" in kwargs:
-            self.h = kwargs.get("h")
-            self.invalidateHamiltonian()
-        if "U" in kwargs:
-            self.U = kwargs.get("U")
-            self.invalidateHamiltonian()
+        self.hdictfull = None        
 
     def invalidateHamiltonian(self):
         """Deletes the cached Hamiltonian so that it is regenerted from the set
@@ -140,87 +122,21 @@ class EDFermiHubbardModel():
         """
         return self.createHilbertSpace()
     
-    def createHilbertSpace(self):
-        V = self.getSize()
-        if self.n is None:
-            self.dimh = int(pow(2, 2*V))
-            return it.product([0, 1], repeat = 2*V)
-        else:
-            self.dimh = int(binom(2*V, self.n))
-            #taken from http://stackoverflow.com/questions/6284396/permutations-with-unique-values
-            def unique_permutations(elements):
-                if len(elements) == 1:
-                    yield (elements[0],)
-                else:
-                    unique_elements = set(elements)
-                    for first_element in unique_elements:
-                        remaining_elements = list(elements)
-                        remaining_elements.remove(first_element)
-                        for sub_permutation in unique_permutations(remaining_elements):
-                            yield (first_element,) + sub_permutation
-            
-            return unique_permutations(list(it.chain(it.repeat(0, 2*V - int(self.n)), it.repeat(1, int(self.n)))))
-            
+    @abstractmethod
     def createHamiltonian(self):
-        if self._periodic == -1:
-            raise Exception("Not implemented!")
+        """To be overwritten by any subclasses. Should return the 
+        Hamiltonian as a matrix in the basis set by 
+        createHilbertSpace().
+        """
+        pass
+    
+    @abstractmethod
+    def createHilbertSpace(self):
+        """To be overwritten by any subclasses. Should return the
+        list of vectors spanning the Hilbert space.
+        """
+        pass
         
-        time0 = time.time()        
-            
-        V = self.getSize()        
-
-        #reverse lookup table for the elements of the hilbet space to efficiently
-        #generate the off diagonal part of the Hamiltonian
-        hdict = {}
-        for row, vec in enumerate(self.getHilbertSpace()):
-            hdict[vec] = row
-
-        H = sps.dok_matrix((self.dimh, self.dimh), dtype=np.float32)
-
-        for row, vec in enumerate(self.getHilbertSpace()):
-            vecu = vec[:V]
-            vecd = vec[V:]
-
-            #diagonal part
-            H[row,row] = \
-            self.U * np.dot(vecu, vecd) \
-            - self.mu * sum(vec) \
-            - self.h/2 * (sum(vecu) - sum(vecd))
-
-            #off-diagonal part
-            for j1 in range(V):
-                if self.t != 0:
-                    for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
-                        j2 = j1+V
-                        k2 = k1+V
-                        sign, newvec = self.hop(j1,k1,vec)
-                        if newvec is not None:
-                            col = hdict[newvec]
-                            H[row,col] += -self.t*sign
-                            H[col,row] += -self.t*sign
-                        sign, newvec = self.hop(j2,k2,vec)
-                        if newvec is not None:
-                            col = hdict[newvec]
-                            H[row,col] += -self.t*sign
-                            H[col,row] += -self.t*sign
-                if self.t2 != 0:
-                    for k1 in get_next_neighbors(j1, self.getLength(), width=self.getWidth(), distance=2, periodic=self._periodic):
-                        j2 = j1+V
-                        k2 = k1+V
-                        sign, newvec = self.hop(j1,k1,vec)
-                        if newvec is not None:
-                            col = hdict[newvec]
-                            H[row,col] += -self.t2*sign
-                            H[col,row] += -self.t2*sign
-                        sign, newvec = self.hop(j2,k2,vec)
-                        if newvec is not None:
-                            col = hdict[newvec]
-                            H[row,col] += -self.t2*sign
-                            H[col,row] += -self.t2*sign
-                            
-        print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
-        return H
-
     def getSize(self):
         """Returns the total size (volume) of the system.
         """
@@ -282,20 +198,7 @@ class EDFermiHubbardModel():
     def getEnergy(self):
         if self.energy is None:
             self.solve()
-        return self.energy
-        
-    def getMagnetization(self):
-        if self.groundstate is None:
-            self.solve()
-        Mdiag = [0.5*(sum(vec[:self.getSize()]) - sum(vec[self.getSize():])) for vec in self.getHilbertSpace()]
-        #print('Mdiag='+str(Mdiag)+" self.groundstate="+str(self.groundstate))
-        return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
-
-    def getNumberOfDoubleOccupiedSites(self):
-        if self.groundstate is None:
-            self.solve()
-        Pdiag = [np.dot(vec[:self.getSize()], vec[self.getSize():]) for vec in self.getHilbertSpace()]
-        return np.dot(Pdiag, [c * np.conj(c) for c in self.groundstate])
+        return self.energy    
     
     def expectationValue(self, operator):
         """Returns the expectation value of the given operator.
@@ -304,11 +207,139 @@ class EDFermiHubbardModel():
             self.solve()
         return np.vdot(self.groundstate, np.dot(operator,self.groundstate))
 
+    @abstractmethod
+    def getPhysicalQuantities(self):
+        """To be overwritten in any subclasses. Should returns a dictionaly
+        of names and corresponding functions of all physical quantities 
+        that are to be written in writeData().
+        """
+        pass
+    
+    def writeData(self, which=None):
+        """Writes the values of all physical quantities returned by
+        getPhysicalQuantities() to the respective files.
+        """
+        if which is None:
+            which = self.getPhysicalQuantities().items()
+        for key, data in iter(which):
+            write_array(self._outputDir + key + self.getSuffix() + ".csv",
+                        data)
+
+    def getMonomialVector(self, variables, monomials):
+        if self.monomialvector is None:
+            try:
+                with open(self._outputDir + "/" +"edMonomialVector" +
+                          self.getSuffix() + ".pickle", 'rb') as handle:
+                    self.monomialvector = pickle.load(handle)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except:           
+                self.createMonomialVector(variables, monomials)
+        return self.monomialvector
+
+    def createMonomialVector(self, variables, monomials):
+        flatmonomials = flatten(monomials)
+        monomialsLength = len(flatmonomials)
+        print(" generating monomial vector")
+        time0 = time.time()
+        
+        self.monomialvector = []
+        with multiprocessing.Pool() as pool:
+            monomials = pool.imap(partial(expressionToMatrix, variables=list(variables), matrices=self.getAnnihiliationOperators()), flatmonomials)
+            for i, monom in enumerate(monomials, 1):
+                self.monomialvector.append(monom)
+                sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
+                sys.stdout.flush()
+            pool.close()
+            pool.join()
+
+        if self._outputDir is not None:
+            if not os.path.isdir(self._outputDir):
+                os.mkdir(self._outputDir)
+                with open(self._outputDir + "/" +"edMonomialVector" +
+                          self.getSuffix() + ".pickle", 'wb') as handle:
+                    pickle.dump(self.monomialvector, handle)
+        print("done")
+
+        
+class EDFermionicLatticeModel(EDLatticeModel):
+    __metaclass__ = ABCMeta
+        
+    def __init__(self, lattice_length, lattice_width, outputDir,
+                 periodic=0, window_length=0):
+        super(EDFermionicLatticeModel, self).__init__(lattice_length, lattice_width, outputDir,
+                 periodic, window_length)
+        self.spin = 0.5
+        
+    def setParameters(self, **kwargs):
+        if "spin" in kwargs:
+            self.spin = kwargs.get("mu")
+            self.invalidateHamiltonian()
+            self.invalidateHilbertSpace()
+            
+    def createHilbertSpace(self):
+        if self.spin == 0.5:
+            spin_multiplicity = 2
+        elif self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+        
+        V = self.getSize()
+        if self.n is None:
+            self.dimh = int(pow(2, spin_multiplicity*V))
+            return it.product([0, 1], repeat = spin_multiplicity*V)
+        else:
+            self.dimh = int(binom(spin_multiplicity*V, self.n))
+            #taken from http://stackoverflow.com/questions/6284396/permutations-with-unique-values
+            def unique_permutations(elements):
+                if len(elements) == 1:
+                    yield (elements[0],)
+                else:
+                    unique_elements = set(elements)
+                    for first_element in unique_elements:
+                        remaining_elements = list(elements)
+                        remaining_elements.remove(first_element)
+                        for sub_permutation in unique_permutations(remaining_elements):
+                            yield (first_element,) + sub_permutation
+            
+            return unique_permutations(list(it.chain(it.repeat(0, spin_multiplicity*V - int(self.n)), it.repeat(1, int(self.n)))))
+                    
+    def getMagnetization(self):
+        if self.groundstate is None:
+            self.solve()
+
+        if self.spin == 0.5:
+            Mdiag = [0.5*(sum(vec[:self.getSize()]) - sum(vec[self.getSize():])) for vec in self.getHilbertSpace()]
+            return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
+        elif self.spin == 0:
+            return 0;
+        elif:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+
+    def getNumberOfDoubleOccupiedSites(self):
+        if self.groundstate is None:
+            self.solve()
+
+        if self.spin == 0.5:
+            Pdiag = [np.dot(vec[:self.getSize()], vec[self.getSize():]) for vec in self.getHilbertSpace()]
+            return np.dot(Pdiag, [c * np.conj(c) for c in self.groundstate])          elif self.spin == 0:
+            return 0;
+        elif:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")  
+
     def getXMat(self, variables, monomials):
         V = self.getSize()
+        if self.spin == 0.5:
+            spin_multiplicity = 2
+        elif self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+
         
         print("generating uplifted ground state")
-        upliftedgroundstate = np.zeros(int(pow(2, 2*V)))
+        upliftedgroundstate = np.zeros(int(pow(2, spin_multiplicity*V)))
         
         for row, vec in enumerate(self.getHilbertSpace()):
             hdict = self.getHdictFull()
@@ -341,9 +372,7 @@ class EDFermiHubbardModel():
         
     def getSuffix(self):
         suffix = "_lat=" + str(self._lattice_length) + "x" + \
-                 str(self._lattice_width) + "_periodic=" + str(self._periodic)\
-                 + "_mu=" + str(self.mu) + "_t=" + str(self.t) + "_h=" + \
-                 str(self.h) + "_U="+str(self.U)
+                 str(self._lattice_width) + "_periodic=" + str(self._periodic)
         if self.n is not None:
             suffix += "_n="+str(self.n)
         if self.nmax is not None:
@@ -356,22 +385,36 @@ class EDFermiHubbardModel():
         #     suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self._lattice_length * self._lattice_width:
             suffix += "_window=" + str(self.window_length)
-        if self.mu != 0:
-            suffix += "_mu=" + str(self.mu)
+        if self.spin != 0.5:
+            suffix += "_spin=" + str(self.spin)
         suffix += "_level="+str(self._level)
         return suffix
 
     def getAnnihiliationOperators(self):
+        if self.spin == 0.5:
+            spin_multiplicity = 2
+        elif self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+
         V = self.getSize()
         if self.annihiliationOperators is None:
             print("generating annihiliation operators")
-            self.annihiliationOperators = [self.createAnnihiliationOperator(j) for j in range(0, 2*V)]
+            self.annihiliationOperators = [self.createAnnihiliationOperator(j) for j in range(0, spin_multiplicity*V)]
         return self.annihiliationOperators
     
     def createAnnihiliationOperator(self, j):
+        if self.spin == 0.5:
+            spin_multiplicity = 2
+        elif self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+        
         V = self.getSize()
-        a = np.zeros((int(pow(2, 2*V)), int(pow(2, 2*V))))
-        for row, vec in enumerate(it.product([0, 1], repeat = 2*V)):
+        a = np.zeros((int(pow(2, spin_multiplicity*V)), int(pow(2, spin_multiplicity*V))))
+        for row, vec in enumerate(it.product([0, 1], repeat = spin_multiplicity*V)):
             if vec[j] == 1:
                 newvec = list(vec)
                 newvec[j] = 0
@@ -385,70 +428,20 @@ class EDFermiHubbardModel():
         return self.hdictfull
     
     def createHdictFull(self):
+        if self.spin == 0.5:
+            spin_multiplicity = 2
+        elif self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+ 
         V = self.getSize()
         #reverse lookup table for the elements of the hilbet space to efficiently generate the annihilation operators
         print("generating lookup table")
         hdict = {}
-        for row, vec in enumerate(it.product([0, 1], repeat = 2*V)):
+        for row, vec in enumerate(it.product([0, 1], repeat = spin_multiplicity*V)):
             hdict[vec] = row
         return hdict
-
-    def getMonomialVector(self, variables, monomials):
-        if self.monomialvector is None:
-            try:
-                with open(self._outputDir + "/" +"edMonomialVector" +
-                          self.getSuffix() + ".pickle", 'rb') as handle:
-                    self.monomialvector = pickle.load(handle)
-            except (KeyboardInterrupt, SystemExit):
-                raise
-            except:           
-                self.createMonomialVector(variables, monomials)
-        return self.monomialvector
-
-    def createMonomialVector(self, variables, monomials):
-        
-        flatmonomials = flatten(monomials)
-        monomialsLength = len(flatmonomials)
-        print(" generating monomial vector")
-        time0 = time.time()
-        
-        self.monomialvector = []
-        with multiprocessing.Pool() as pool:
-            monomials = pool.imap(partial(expressionToMatrix, variables=list(variables), matrices=self.getAnnihiliationOperators()), flatmonomials)
-            for i, monom in enumerate(monomials, 1):
-                self.monomialvector.append(monom)
-                sys.stdout.write("\r\x1b[K processed "+str(i)+" of "+str(monomialsLength)+" monomials in "+str(time.time()-time0)+" seconds ")
-                sys.stdout.flush()
-            pool.close()
-            pool.join()
-
-        if self._outputDir is not None:
-            if not os.path.isdir(self._outputDir):
-                os.mkdir(self._outputDir)
-                with open(self._outputDir + "/" +"edMonomialVector" +
-                          self.getSuffix() + ".pickle", 'wb') as handle:
-                    pickle.dump(self.monomialvector, handle)
-        print("done")
-
-    def getPhysicalQuantities(self):
-        """Returns a dictionaly of names and corresponding functions of all
-        physical quantities that are to be written in writeData(). This should
-        be overwritten in subclasses.
-        """
-        return {"/edPrimal": [self.getPrimal()],
-                "/edMagnetization": [self.getMagnetization()],
-                "/edNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
-        }
-
-    def writeData(self, which=None):
-        """Writes the values of all physical quantities returned by
-        getPhysicalQuantities() to the respective files.
-        """
-        if which is None:
-            which = self.getPhysicalQuantities().items()
-        for key, data in iter(which):
-            write_array(self._outputDir + key + self.getSuffix() + ".csv",
-                        data)
 
     def hop(self, j, k, vec):
         if j==k:
@@ -469,17 +462,156 @@ class EDFermiHubbardModel():
 
             
     def projectorOntoHilbertSpace(self):
+        if self.spin == 0.5:
+            spin_multiplicity = 2
+        elif self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+
         V = self.getSize()
-        P = sps.dok_matrix((int(pow(2, 2*V)), self.dimh), dtype=np.float32)
+        P = sps.dok_matrix((int(pow(2, spin_multiplicity*V)), self.dimh), dtype=np.float32)
         
         dict = self.getHdictFull()
         for row, vec in enumerate(self.getHilbertSpace()):
             col = dict[vec]
             P[col,row] = 1
         
-        return P    
+        return P
+    
+
+class EDFermiHubbardModel(EDFermionicLatticeModel):
+    __metaclass__ = ABCMeta
         
+    def __init__(self, lattice_length, lattice_width, outputDir,
+                 periodic=0, window_length=0):
+        super(EDFermiHubbardModel, self).__init__(lattice_length, lattice_width, outputDir,
+                 periodic, window_length)
+        self.mu, self.t, self.t2, self.h, self.U = 0, 0, 0, 0, 0
+        
+    def setParameters(self, **kwargs):
+        super(EDFermiHubbardModel, self).setParameters(**kwargs)
+        if "mu" in kwargs:
+            self.mu = kwargs.get("mu")
+            self.invalidateHamiltonian()
+        if "t" in kwargs:
+            self.t = kwargs.get("t")
+            self.invalidateHamiltonian()
+        if "t2" in kwargs:
+            self.t2 = kwargs.get("t2")
+            self.invalidateHamiltonian()
+        if "h" in kwargs:
+            self.h = kwargs.get("h")
+            self.invalidateHamiltonian()
+        if "U" in kwargs:
+            self.U = kwargs.get("U")
+            self.invalidateHamiltonian()        
             
+    def createHamiltonian(self):
+        if self._periodic == -1:
+            raise Exception("Not implemented!")
+        if self.spin == 0.5:
+            raise Exception("Only spin 1/2 implemented!")
+        
+        time0 = time.time()        
+            
+        V = self.getSize()        
+
+        #reverse lookup table for the elements of the hilbet space to efficiently
+        #generate the off diagonal part of the Hamiltonian
+        hdict = {}
+        for row, vec in enumerate(self.getHilbertSpace()):
+            hdict[vec] = row
+
+        H = sps.dok_matrix((self.dimh, self.dimh), dtype=np.float32)
+
+        for row, vec in enumerate(self.getHilbertSpace()):
+            vecu = vec[:V]
+            vecd = vec[V:]
+
+            #diagonal part
+            H[row,row] = \
+            self.U * np.dot(vecu, vecd) \
+            - self.mu * sum(vec) \
+            - self.h/2 * (sum(vecu) - sum(vecd))
+
+            #off-diagonal part
+            for j1 in range(V):
+                if self.t != 0:
+                    for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
+                        j2 = j1+V
+                        k2 = k1+V
+                        sign, newvec = self.hop(j1,k1,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t*sign
+                            H[col,row] += -self.t*sign
+                        sign, newvec = self.hop(j2,k2,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t*sign
+                            H[col,row] += -self.t*sign
+                if self.t2 != 0:
+                    for k1 in get_next_neighbors(j1, self.getLength(), width=self.getWidth(), distance=2, periodic=self._periodic):
+                        j2 = j1+V
+                        k2 = k1+V
+                        sign, newvec = self.hop(j1,k1,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t2*sign
+                            H[col,row] += -self.t2*sign
+                        sign, newvec = self.hop(j2,k2,vec)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            H[row,col] += -self.t2*sign
+                            H[col,row] += -self.t2*sign
+                            
+        print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
+        return H
+        
+    def getSuffix(self):
+        suffix = "_lat=" + str(self._lattice_length) + "x" + \
+                 str(self._lattice_width) + "_periodic=" + str(self._periodic)\
+                 + "_mu=" + str(self.mu) + "_t=" + str(self.t) + "_h=" + \
+                 str(self.h) + "_U="+str(self.U)
+        if self.n is not None:
+            suffix += "_n="+str(self.n)
+        if self.nmax is not None:
+            suffix += "_nmax="+str(self.nmax)
+        if self.nmin is not None:
+            suffix += "_nmin="+str(self.nmin)
+        if self.localNmax is not None:
+            suffix += "_localnmax="+str(self.localNmax)
+        # if self._periodic:
+        #     suffix += "_periodic=" + str(self._periodic)
+        if self.window_length != self._lattice_length * self._lattice_width:
+            suffix += "_window=" + str(self.window_length)
+        if self.mu != 0:
+            suffix += "_mu=" + str(self.mu)
+        if self.spin != 0.5:
+            suffix += "_spin=" + str(self.spin)
+        suffix += "_level="+str(self._level)
+        return suffix
+
+    def getPhysicalQuantities(self):
+        """Returns a dictionaly of names and corresponding functions of all
+        physical quantities that are to be written in writeData(). This should
+        be overwritten in subclasses.
+        """
+        return {"/edPrimal": [self.getPrimal()],
+                "/edMagnetization": [self.getMagnetization()],
+                "/edNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
+        }
+            
+
+
+
+
+
+
+
+
+    
         
 def expressionToMatrix(expr, variables=None, matrices=None):
     """Converts sympy expression expr formulated in terms of the variables variables to a numpy array, by replacing every occurance of a variable in variables with the corresponding numpy matrix/array in matrices.
