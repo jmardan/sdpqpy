@@ -266,14 +266,14 @@ class EDFermionicLatticeModel(EDLatticeModel):
     __metaclass__ = ABCMeta
         
     def __init__(self, lattice_length, lattice_width, outputDir,
-                 periodic=0, window_length=0):
+                 periodic=0, window_length=0, spin=0.5):
         super(EDFermionicLatticeModel, self).__init__(lattice_length, lattice_width, outputDir,
                  periodic, window_length)
-        self.spin = 0.5
+        self.spin = spin
         
     def setParameters(self, **kwargs):
         if "spin" in kwargs:
-            self.spin = kwargs.get("mu")
+            self.spin = kwargs.get("spin")
             self.invalidateHamiltonian()
             self.invalidateHilbertSpace()
             
@@ -484,9 +484,9 @@ class EDFermiHubbardModel(EDFermionicLatticeModel):
     __metaclass__ = ABCMeta
         
     def __init__(self, lattice_length, lattice_width, outputDir,
-                 periodic=0, window_length=0):
+                 periodic=0, window_length=0, spin=0.5):
         super(EDFermiHubbardModel, self).__init__(lattice_length, lattice_width, outputDir,
-                 periodic, window_length)
+                                                  periodic, window_length, spin)
         self.mu, self.t, self.t2, self.h, self.U = 0, 0, 0, 0, 0
         
     def setParameters(self, **kwargs):
@@ -511,7 +511,16 @@ class EDFermiHubbardModel(EDFermionicLatticeModel):
         if self._periodic == -1:
             raise Exception("Not implemented!")
         if self.spin == 0.5:
-            raise Exception("Only spin 1/2 implemented!")
+            spin_multiplicity = 2
+        elif self.spin == 0:
+            spin_multiplicity = 1
+        else:
+            raise Exception("Only spin 1/2 and spin 0 implemented!")
+        if self.spin == 0:
+            if self.U != 0:
+                raise Exception("U!=0 only makes sense for spin!=0!")
+            if self.h != 0:
+                raise Exception("h!=0 only makes sense for spin!=0!")
         
         time0 = time.time()        
             
@@ -524,47 +533,53 @@ class EDFermiHubbardModel(EDFermionicLatticeModel):
             hdict[vec] = row
 
         H = sps.dok_matrix((self.dimh, self.dimh), dtype=np.float32)
-
+        
         for row, vec in enumerate(self.getHilbertSpace()):
             vecu = vec[:V]
             vecd = vec[V:]
 
             #diagonal part
-            H[row,row] = \
-            self.U * np.dot(vecu, vecd) \
-            - self.mu * sum(vec) \
-            - self.h/2 * (sum(vecu) - sum(vecd))
-
+            entry = 0
+            if self.mu != 0:
+                entry += - self.mu * sum(vec)
+            if self.U != 0:
+                entry += self.U * np.dot(vecu, vecd)
+            if self.h != 0:
+                entry += -self.h/2 * (sum(vecu) - sum(vecd))
+            H[row,row] = entry
+                
             #off-diagonal part
             for j1 in range(V):
                 if self.t != 0:
                     for k1 in get_neighbors(j1, self.getLength(), width=self.getWidth(), periodic=self._periodic):
-                        j2 = j1+V
-                        k2 = k1+V
                         sign, newvec = self.hop(j1,k1,vec)
                         if newvec is not None:
                             col = hdict[newvec]
                             H[row,col] += -self.t*sign
                             H[col,row] += -self.t*sign
-                        sign, newvec = self.hop(j2,k2,vec)
-                        if newvec is not None:
-                            col = hdict[newvec]
-                            H[row,col] += -self.t*sign
-                            H[col,row] += -self.t*sign
+                        if self.spin == 0.5:
+                            j2 = j1+V
+                            k2 = k1+V
+                            sign, newvec = self.hop(j2,k2,vec)
+                            if newvec is not None:
+                                col = hdict[newvec]
+                                H[row,col] += -self.t*sign
+                                H[col,row] += -self.t*sign
                 if self.t2 != 0:
                     for k1 in get_next_neighbors(j1, self.getLength(), width=self.getWidth(), distance=2, periodic=self._periodic):
-                        j2 = j1+V
-                        k2 = k1+V
                         sign, newvec = self.hop(j1,k1,vec)
                         if newvec is not None:
                             col = hdict[newvec]
                             H[row,col] += -self.t2*sign
                             H[col,row] += -self.t2*sign
-                        sign, newvec = self.hop(j2,k2,vec)
-                        if newvec is not None:
-                            col = hdict[newvec]
-                            H[row,col] += -self.t2*sign
-                            H[col,row] += -self.t2*sign
+                        if self.spin == 0.5:
+                            j2 = j1+V
+                            k2 = k1+V
+                            sign, newvec = self.hop(j2,k2,vec)
+                            if newvec is not None:
+                                col = hdict[newvec]
+                                H[row,col] += -self.t2*sign
+                                H[col,row] += -self.t2*sign
                             
         print("Hilbert space and Hamiltonian for system of dimension "+str(len(H))+" generated in", time.time()-time0, "seconds")
         return H
