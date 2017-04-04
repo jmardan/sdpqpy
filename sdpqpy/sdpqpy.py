@@ -521,9 +521,9 @@ class SecondQuantizedModel(LatticeModel):
         return self.getSdp()[operator]
 
     def getPhysicalQuantities(self):
-        """Returns a dictionaly of names and corresponding functions of all
-        physical quantities that are to be written in writeData(). This should
-        be overwritten in subclasses.
+        """To be overwritten in any subclasses. Should returns a dictionaly
+        of names and corresponding functions of all physical quantities 
+        that are to be written in writeData().
         """
         return {"/gtwo": self.gtwo(),
                 "/density_density_corr": self.getDensityDensityCorrelations(),
@@ -866,3 +866,126 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
             suffix += "_window=" + str(self.window_length)
         suffix += "_level="+str(self._level)
         return suffix
+
+
+
+
+class KitaevChain(SecondQuantizedModel):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, lattice_length, lattice_width, solver, outputDir,
+                 periodic=0, window_length=0, removeequalities=False, parallel=True):
+        SecondQuantizedModel.__init__(self, lattice_length, lattice_width,
+                                      solver, outputDir, periodic,
+                                      window_length, removeequalities, parallel=parallel)
+        self._f = generate_variables('f', lattice_length * lattice_width, commutative=False)
+        self._b = self._f
+        self.mu, self.t, self.Delta, self.alpha, self.V = 0, 0, 0, float("inf")x, 0
+
+    def createHamiltonian(self):
+        if self._periodic == -1:
+            fext = self._f + [-fi for fi in self._f]
+        else:
+            raise Exception("Not implemented!")
+
+        hamiltonian = 0
+        V = self.getSize()
+        if self.t != 0:
+            for j in range(V):
+                # for k in get_neighbors(j, self.getLength(), width=self.getWidth(), periodic=self._periodic):
+                with j+1 as k:
+                    hamiltonian += -self.t*Dagger(fext[j])*fext[k]\
+                                   -self.t*Dagger(fext[k])*fext[j]
+
+        if self.mu != 0:
+            for j in range(V):
+                hamiltonian += -self.mu*(Dagger(fext[j])*fext[j])
+
+        if self.V != 0:
+            for j in range(V):
+                hamiltonian += self.V*(Dagger(fext[j])*fext[j]*
+                                         Dagger(fext[j+1])*fext[j+1])
+
+        if self.Delta != 0:
+            for i in range(V):
+                for j in range(1,V):
+                    dj = math.min(j,self.getLength()-j)
+                    hamiltonian += 0.5*self.Delta*(fext[i]*fext[i+j] + Dagger(fext[i+j])*Dagger(fext[i]))*math.pow(dj,self.alpha)     
+                
+        return hamiltonian
+
+    def createSubstitutions(self):
+        return fermionic_constraints(self._b)
+
+    def createMonomials(self):
+        monomials = []
+        for i in range(self.getSize() - self.window_length + 1):
+            window = self._b[i:i+self.window_length]
+            window.extend(self._b[self.getSize()+i:
+                                  self.getSize()+i+self.window_length])
+            monomials.append([ci for ci in window])
+            monomials[-1].extend([Dagger(ci) for ci in window])
+            monomials.append([cj*ci for ci in window for cj in window])
+            monomials.append([Dagger(cj)*ci for ci in window for cj in window])
+            monomials[-1].extend([cj*Dagger(ci)
+                                  for ci in window for cj in window])
+            monomials.append([Dagger(cj)*Dagger(ci)
+                              for ci in window for cj in window])
+        return monomials
+
+    def getMagnetization(self):
+        s = 0.5*(sum((Dagger(fu)*fu) for fu in self._fu) -
+                 sum((Dagger(fd)*fd) for fd in self._fd))
+        return self.expectationValue(s)
+
+    def getNumberOfDoubleOccupiedSites(self):
+        p = sum((Dagger(fd)*fd*Dagger(fu)*fu) for fu,fd in zip(self._fu,self._fd))
+        return self.expectationValue(p)
+
+    def getParticleNumber(self):
+        N = (sum((Dagger(fu)*fu) for fu in self._fu) +
+             sum((Dagger(fd)*fd) for fd in self._fd))
+        return self.expectationValue(N)
+
+    def setParameters(self, **kwargs):
+        if "mu" in kwargs:
+            self.mu = kwargs.get("mu")
+            self.invalidateHamiltonian()
+        if "t" in kwargs:
+            self.t = kwargs.get("t")
+            self.invalidateHamiltonian()
+        if "h" in kwargs:
+            self.h = kwargs.get("h")
+            self.invalidateHamiltonian()
+        if "U" in kwargs:
+            self.U = kwargs.get("U")
+            self.invalidateHamiltonian()
+
+    def getSuffix(self):
+        suffix = "_lat=" + str(self._lattice_length) + "x" + \
+                 str(self._lattice_width) + "_periodic=" + str(self._periodic)\
+                 + "_mu=" + str(self.mu) + "_t=" + str(self.t) + "_h=" + \
+                 str(self.h) + "_U="+str(self.U)
+        if self.n is not None:
+            suffix += "_n="+str(self.n)
+        if self.nmax is not None:
+            suffix += "_nmax="+str(self.nmax)
+        if self.nmin is not None:
+            suffix += "_nmin="+str(self.nmin)
+        if self.localNmax is not None:
+            suffix += "_localnmax="+str(self.localNmax)
+        if self._periodic:
+            suffix += "_periodic=" + str(self._periodic)
+        if self.window_length != self.getSize():
+            suffix += "_window=" + str(self.window_length)
+        suffix += "_level="+str(self._level)
+        return suffix
+
+    def getPhysicalQuantities(self):
+        return {"/primal": [self.getPrimal()],
+                "/dual": [self.getPrimal()],
+                "/getParticleNumber": [self.getParticleNumber()],
+                "/magnetization": [self.getMagnetization()],
+                "/getNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
+        }
+    

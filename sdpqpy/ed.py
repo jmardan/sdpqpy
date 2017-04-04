@@ -444,11 +444,21 @@ class EDFermionicLatticeModel(EDLatticeModel):
         return hdict
 
     def hop(self, j, k, vec, length=0, width=1, periodic=0):
-        if j==k:
-            raise Exception('j=k not implemented')
+        """Returns the vector and sign resulting from hopping from j to k.
+        """
+        act(self, j, k, vec, 0, 1, length, width, periodic):
+
+        
+    def act(self, j, k, vec, create_j, create_k, length=0, width=1, periodic=0):
+        """Returns the vector and sign resulting aplying a creation/annihilation 
+        operator on site j and k. If create_j=1 a creation operator is applied,
+        if create_j=0 an annihilation operator is applied to site j and 
+        respectively, for k.
+        """
         if width!=1:
             raise Exception('only 1D implemented')
-
+        if (create_j!=0 or create_j!=1) and (create_k!=0 or create_k!=1):
+            raise Exception('create_j and create_k must be 0 or 1')
         if periodic==0 and ( j>=len(vec) or j>=len(vec) or j<0 or k<0 or (length!=0 and (j>=length or j>=length) ) ):
             return None, None
         elif periodic==1:
@@ -466,16 +476,19 @@ class EDFermionicLatticeModel(EDLatticeModel):
             while j<0: j+=length
             while k<0: k+=length
             j = j % length
-            k = k % length            
+            k = k % length
         else:
             raise Exception('not implemented')
+
+        if j==k:
+            raise Exception('j=k not implemented')
         
-        if vec[j] == 0 or vec[k] == 1:
+        if vec[j] == create_j or vec[k] == create_k:
             return None, None
         else:
             newvec = list(vec)
-            newvec[j] = 0
-            newvec[k] = 1
+            newvec[j] = create_j
+            newvec[k] = create_k
             if (j<k and sum(vec[j+1:k]) % 2 == 1):
                 sign *= -1
             elif (j>k and sum(vec[k+1:j]) % 2 == 1):
@@ -700,7 +713,7 @@ class EDKitaevChain(EDFermionicLatticeModel):
             if self.mu != 0:
                 entry += - self.mu * sum(vec)
             if self.V != 0:
-                entry += self.V * sum(vec[i-1] vec[i] for i in range(V))
+                entry += self.V * sum(vec[i-1]*vec[i] for i in range(V))
             H[row,row] = entry
                 
             #off-diagonal part
@@ -724,12 +737,19 @@ class EDKitaevChain(EDFermionicLatticeModel):
                 if self.Delta != 0:
                     for j in range(1,self.getLength()):
                         k1 = j1+j
-                        sign, newvec = self.hop(j1,k1,vec,length=self.getLength(),periodic=self._periodic)
+                        sign, newvec = self.act(j1,k1,vec,0,0,length=self.getLength(),periodic=self._periodic)
                         if newvec is not None:
                             col = hdict[newvec]
                             dj = math.min(j,self.getLength()-j)
-                            H[row,col] += -self.Delta*sign*math.pow(dj, -self.alpha)
-                            H[col,row] += -self.Delta*sign*math.pow(dj, -self.alpha)
+                            H[row,col] += -0.5*self.Delta*sign*math.pow(dj, -self.alpha)
+                            H[col,row] += -0.5*self.Delta*sign*math.pow(dj, -self.alpha)
+                        sign, newvec = self.act(k1,j1,vec,1,1,length=self.getLength(),periodic=self._periodic)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            dj = math.min(j,self.getLength()-j)
+                            H[row,col] += -0.5*self.Delta*sign*math.pow(dj, -self.alpha)
+                            H[col,row] += -0.5*self.Delta*sign*math.pow(dj, -self.alpha)
+
                 # if self.t2 != 0:
                 #     for k1 in get_next_neighbors(j1, self.getLength(), width=self.getWidth(), distance=2, periodic=self._periodic):
                 #         sign, newvec = self.hop(j1,k1,vec)
