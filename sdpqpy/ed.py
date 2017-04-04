@@ -651,7 +651,7 @@ class EDKitaevChain(EDFermionicLatticeModel):
                  periodic=0, window_length=0, spin=0.5):
         super(EDFermiHubbardModel, self).__init__(lattice_length, lattice_width, outputDir,
                                                   periodic, window_length, spin)
-        self.mu, self.t, self.Delta, self.alpha, self.V = 0, 0, 0, 0, 0
+        self.mu, self.t, self.Delta, self.alpha, self.V = 0, 0, 0, float("inf")x, 0
         
     def setParameters(self, **kwargs):
         super(EDFermiHubbardModel, self).setParameters(**kwargs)
@@ -721,6 +721,15 @@ class EDKitaevChain(EDFermionicLatticeModel):
                         #         col = hdict[newvec]
                         #         H[row,col] += -self.t*sign
                         #         H[col,row] += -self.t*sign
+                if self.Delta != 0:
+                    for j in range(1,self.getLength()):
+                        k1 = j1+j
+                        sign, newvec = self.hop(j1,k1,vec,length=self.getLength(),periodic=self._periodic)
+                        if newvec is not None:
+                            col = hdict[newvec]
+                            dj = math.min(j,self.getLength()-j)
+                            H[row,col] += -self.Delta*sign*math.pow(dj, -self.alpha)
+                            H[col,row] += -self.Delta*sign*math.pow(dj, -self.alpha)
                 # if self.t2 != 0:
                 #     for k1 in get_next_neighbors(j1, self.getLength(), width=self.getWidth(), distance=2, periodic=self._periodic):
                 #         sign, newvec = self.hop(j1,k1,vec)
