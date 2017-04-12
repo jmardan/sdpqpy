@@ -7,7 +7,6 @@ quantum lattice models in the context of ncpol2sdpa.
 """
 from __future__ import print_function, division
 import cmath
-import csv
 import math
 import os
 import pickle
@@ -20,38 +19,37 @@ except:
 from abc import ABCMeta, abstractmethod
 
 from sympy.physics.quantum import Dagger
-from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
-                       generate_variables, bosonic_constraints, flatten, \
-                       fermionic_constraints
-
-
-def write_array(filename, array):
-    file_ = open(filename, 'w')
-    writer = csv.writer(file_)
-    writer.writerow(array)
-    file_.close()
+from ncpol2sdpa import bosonic_constraints, fermionic_constraints, flatten, \
+    generate_variables, get_neighbors, get_next_neighbors, RdmHierarchy
+from .tools import write_array
 
 
 class PatchedRdmHierarchy(RdmHierarchy):
 
     def __init__(self, variables, parameters=None, verbose=0, circulant=False,
                  parallel=False):
-        super(PatchedRdmHierarchy, self).__init__(variables, parameters, verbose,
-                                           False, parallel)
+        super(PatchedRdmHierarchy, self).__init__(variables, parameters,
+                                                  verbose, False, parallel)
         self.constraints_hash = None
 
     def process_constraints(self, inequalities=None, equalities=None,
                             momentinequalities=None, momentequalities=None,
                             block_index=0, removeequalities=False):
         if block_index == 0 or block_index == self.constraint_starting_block:
-            if self.constraints_hash == hash(frozenset((str(inequalities),str(equalities),str(momentequalities),str(momentinequalities),str(momentequalities),str(removeequalities)))):
-                return
-            super(PatchedRdmHierarchy, self).process_constraints(inequalities=inequalities, equalities=equalities,
-                            momentinequalities=momentinequalities, momentequalities=momentequalities,
-                            block_index=block_index, removeequalities=removeequalities)
-            self.constraints_hash = hash(frozenset((str(inequalities),str(equalities),str(momentequalities),str(momentinequalities),str(momentequalities),str(removeequalities))))
-
-
+            # This hashing is mighty expensive
+            new_hash = hash(frozenset((str(inequalities), str(equalities),
+                                       str(momentinequalities),
+                                       str(momentequalities),
+                                       str(removeequalities))))
+            if self.constraints_hash != new_hash:
+                super(PatchedRdmHierarchy, self).\
+                    process_constraints(inequalities=inequalities,
+                                        equalities=equalities,
+                                        momentinequalities=momentinequalities,
+                                        momentequalities=momentequalities,
+                                        block_index=block_index,
+                                        removeequalities=removeequalities)
+                self.constraints_hash = new_hash
 
 
 class LatticeModel:
@@ -133,11 +131,11 @@ class LatticeModel:
                 os.mkdir(self._outputDir)
 
             if sdpRelaxation.status == "unsolved":
-                with open(self._outputDir + "/" +"sdpRelaxation" +
+                with open(self._outputDir + "/" + "sdpRelaxation" +
                           self.getShortSuffix() + ".pickle", 'wb') as handle:
                     pickle.dump(sdpRelaxation, handle)
             else:
-                with open(self._outputDir + "/" +"sdpRelaxation" +
+                with open(self._outputDir + "/" + "sdpRelaxation" +
                           self.getSuffix() + ".pickle", 'wb') as handle:
                     pickle.dump(sdpRelaxation, handle)
 
@@ -148,13 +146,13 @@ class LatticeModel:
         from getShortSuffix().
         """
         try:
-            with open(self._outputDir + "/" +"sdpRelaxation" +
+            with open(self._outputDir + "/" + "sdpRelaxation" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            with open(self._outputDir + "/" +"sdpRelaxation" +
+            with open(self._outputDir + "/" + "sdpRelaxation" +
                       self.getShortSuffix() + ".pickle", 'rb') as handle:
                 return pickle.load(handle)
 
@@ -263,11 +261,11 @@ class LatticeModel:
 
             self.__sdpRelaxation.set_objective(self.getHamiltonian())
 
-            print('solving SDP with '+str(self._solver))
+            print('solving SDP with ' + str(self._solver))
             time0 = time.time()
             solverparameters = None
             if self._precision is not None and self._solver == "mosek":
-                solverparameters={
+                solverparameters = {
                     'dparam.intpnt_co_tol_rel_gap': self._precision,
                     'dparam.intpnt_co_tol_mu_red': self._precision,
                     'dparam.intpnt_nl_tol_rel_gap': self._precision,
@@ -279,15 +277,17 @@ class LatticeModel:
                     'dparam.intpnt_co_tol_pfeas': self._precision,
                 }
             elif self._precision is not None:
-                print("Warning: Setting precision only implemented for mosek")
-            self.__sdpRelaxation.solve(solver=self._solver, solverparameters=solverparameters)
-            print("SDP solved in", time.time()-time0, "seconds")
+                raise NotImplementedError('Setting precision only implemented '
+                                          'for mosek.')
+
+            self.__sdpRelaxation.solve(
+                solver=self._solver, solverparameters=solverparameters)
+            print("SDP solved in", time.time() - time0, "seconds")
 
             self.pickleSdp(self.__sdpRelaxation)
 
     def setPrecision(self, precision):
         self._precision = precision
-
 
     def getEnergy(self):
         """Returns the energy (primal of the SDP) of the system.
@@ -334,7 +334,8 @@ class SecondQuantizedModel(LatticeModel):
             self.window_length = lattice_length * lattice_width
         else:
             if self._lattice_width != 1:
-                raise Exception("Windowed models in more than 1D not implemented!")
+                raise NotImplementedError(
+                    "Windowed models in more than 1D not implemented!")
             self.window_length = window_length
         self._parallel = parallel
         self._debug_mode = False
@@ -374,7 +375,7 @@ class SecondQuantizedModel(LatticeModel):
         inequalities = []
         momentinequalities = []
         if self.localNmax is not None:
-            inequalities.extend(self.localNmax-Dagger(br)*br
+            inequalities.extend(self.localNmax - Dagger(br) * br
                                 for br in self._b)
         if self.n is not None:
             # momentsubstitutions[Dagger(self._b[0])*self._b[0]] = self.n-sum(Dagger(br)*br for br in self._b[1:])
@@ -385,9 +386,11 @@ class SecondQuantizedModel(LatticeModel):
                 momentequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
 
         if self.nmax is not None:
-            momentinequalities.append(self.nmax-sum(Dagger(br)*br for br in self._b))
+            momentinequalities.append(
+                self.nmax - sum(Dagger(br) * br for br in self._b))
         if self.nmin is not None:
-            momentinequalities.append(sum(Dagger(br)*br for br in self._b)-self.nmin)
+            momentinequalities.append(
+                sum(Dagger(br) * br for br in self._b) - self.nmin)
 
         try:
             # Try to recycle the outdated or loaded SDP. This only works if
@@ -402,7 +405,7 @@ class SecondQuantizedModel(LatticeModel):
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            #We have to generate from scatch
+            # We have to generate from scatch
             time0 = time.time()
             sdpRelaxation = PatchedRdmHierarchy(self._b, verbose=0, parallel=self._parallel)
             if self._level == -1:
@@ -413,6 +416,7 @@ class SecondQuantizedModel(LatticeModel):
                 print("generating a standard SDP with level " +
                       str(self._level))
                 monomials = None
+
             sdpRelaxation.get_relaxation(self._level,
                                          equalities=equalities,
                                          momentequalities=momentequalities,
@@ -424,7 +428,7 @@ class SecondQuantizedModel(LatticeModel):
                                          removeequalities=self._removeequalities)
             print('SDP of lattice %dx%d generated in %0.2f seconds' %
                   (self._lattice_length, self._lattice_width,
-                   (time.time()-time0)))
+                   (time.time() - time0)))
 
         return sdpRelaxation
 
@@ -436,10 +440,10 @@ class SecondQuantizedModel(LatticeModel):
 
     def getDensityDensityCorrelations(self):
         """Returns the density density correlation function. If necessary
-        soles the SDP first.
+        solves the SDP first.
         """
         if self._lattice_width != 1:
-            raise Exception("More than 1D not implemented!")
+            raise NotImplementedError("More than 1D not implemented!")
 
         if self._periodic or self._periodic == 1:
             bext = self._b + [bi for bi in self._b]
@@ -453,23 +457,23 @@ class SecondQuantizedModel(LatticeModel):
             L = len(self._b)
             for l in range(L):
                 if (self._periodic is False or self._periodic == 0) and \
-                        l+r >= L:
+                        l + r >= L:
                     break
-                n_lr = Dagger(bext[l+r])*bext[l+r]
-                n_l = Dagger(bext[l])*bext[l]
+                n_lr = Dagger(bext[l + r]) * bext[l + r]
+                n_l = Dagger(bext[l]) * bext[l]
                 en_l = self.expectationValue(n_l)
                 en_lr = self.expectationValue(n_lr)
-                en_lrl = self.expectationValue(n_lr*n_l)
-                Cr += en_lrl - en_lr*en_l
-            return Cr/L
+                en_lrl = self.expectationValue(n_lr * n_l)
+                Cr += en_lrl - en_lr * en_l
+            return Cr / L
 
         return [f(r) for r in range(0, self._lattice_length)]
 
     def gtwo(self):
-        """Returns the g_2 function. If necessary soles the SDP first.
+        """Returns the g_2 function. If necessary solves the SDP first.
         """
         if self._lattice_width != 1:
-            raise Exception("More than 1D not implemented!")
+            raise NotImplementedError("More than 1D not implemented!")
 
         if self._periodic or self._periodic == 1:
             bext = self._b + [bi for bi in self._b]
@@ -482,39 +486,40 @@ class SecondQuantizedModel(LatticeModel):
             Cr = 0
             L = len(self._b)
             l = 0
-            if (self._periodic is False or self._periodic == 0) and l+r >= L:
+            if (self._periodic is False or self._periodic == 0) and l + r >= L:
                 return 0
-            n_lr = Dagger(bext[l+r])*bext[l+r]
-            n_l = Dagger(bext[l])*bext[l]
+            n_lr = Dagger(bext[l + r]) * bext[l + r]
+            n_l = Dagger(bext[l]) * bext[l]
             en_l = self.expectationValue(n_l)
             en_lr = self.expectationValue(n_lr)
-            en_lrl = self.expectationValue(n_lr*n_l)
-            Cr += en_lrl - en_lr*en_l
+            en_lrl = self.expectationValue(n_lr * n_l)
+            Cr += en_lrl - en_lr * en_l
             return Cr
 
         return [f(r) for r in range(0, self._lattice_length)]
 
     def getMomentumDistribution(self):
-        """Returns the momentum distribution. If necessary soles the SDP first.
+        """Returns the momentum distribution. If necessary solves the SDP first.
         """
         def f(k):
             n = 0
             for j, bj in enumerate(self._b):
                 for l, bl in enumerate(self._b):
-                    n += cmath.exp(1j*k*(j-l))*self.expectationValue(Dagger(bj)*bl)
-            return n/len(self._b)
-        return [f(2*cmath.pi*m/self._lattice_length)
-                for m in range(-int(self._lattice_length/2),
-                               int(self._lattice_length/2+1))]
+                    n += cmath.exp(1j * k * (j - l)) * \
+                        self.expectationValue(Dagger(bj) * bl)
+            return n / len(self._b)
+        return [f(2 * cmath.pi * m / self._lattice_length)
+                for m in range(-int(self._lattice_length / 2),
+                               int(self._lattice_length / 2 + 1))]
 
     def getParticleNumber(self):
-        """Returns the total particle number. If necessary soles the SDP first.
+        """Returns the total particle number. If necessary solves the SDP first.
         """
-        return self.expectationValue(sum( Dagger(bj)*bj for bj in self._b))
+        return self.expectationValue(sum(Dagger(bj) * bj for bj in self._b))
 
     def expectationValue(self, operator):
         """Returns the expectation value of the given operator. If necessary
-        soles the SDP first.
+        solves the SDP first.
         """
         if self.getSdp() is None or self.getSdp().status == "unsolved":
             self.solve()
@@ -549,7 +554,7 @@ class SecondQuantizedModel(LatticeModel):
             suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
-        suffix += "_level="+str(self._level)
+        suffix += "_level=" + str(self._level)
         return suffix
 
     def setConstraints(self, **kwargs):
@@ -605,25 +610,27 @@ class BoseHubbardModel(SecondQuantizedModel):
 
     def createHamiltonian(self):
         if self._periodic == -1:
-            raise Exception("Antiperiodic boundary conditions not "
-                            "implemented!")
+            raise NotImplementedError("Antiperiodic boundary conditions not "
+                                      "implemented!")
 
         hamiltonian = 0
         for r, br in enumerate(self._b):
             if self.U != 0:
-                hamiltonian += self.U/2.0*(Dagger(br)*br*(Dagger(br)*br-1))
+                hamiltonian += self.U / 2.0 * \
+                    (Dagger(br) * br * (Dagger(br) * br - 1))
             if self.mu != 0:
-                hamiltonian += -self.mu*Dagger(br)*br
+                hamiltonian += -self.mu * Dagger(br) * br
             if self.t != 0:
                 for s in get_neighbors(r, self._lattice_length,
                                        self._lattice_width, self._periodic):
-                    hamiltonian += -self.t*(Dagger(br)*self._b[s] +
-                                            Dagger(self._b[s])*br)
+                    hamiltonian += -self.t * (Dagger(br) * self._b[s] +
+                                              Dagger(self._b[s]) * br)
             if self.t2 != 0:
-                for s in get_bext_neighbors(r, self._lattice_length,
-                                            self._lattice_width, 2, self._periodic):
-                    hamiltonian += -self.t2*(Dagger(br)*self._b[s] +
-                                            Dagger(self._b[s])*br)
+                for s in get_next_neighbors(r, self._lattice_length,
+                                            self._lattice_width, 2,
+                                            self._periodic):
+                    hamiltonian += -self.t2 * (Dagger(br) * self._b[s] +
+                                               Dagger(self._b[s]) * br)
         return hamiltonian
 
     def createSubstitutions(self):
@@ -632,12 +639,13 @@ class BoseHubbardModel(SecondQuantizedModel):
     def createMonomials(self):
         monomials = []
         for i in range(self.getSize() - self.window_length + 1):
-            window = self._b[i:i+self.window_length]
-            monomials.append([bj*bi for bi in window for bj in window])
-            monomials.append([Dagger(bj)*bi for bi in window for bj in window])
-            monomials[-1].extend([bj*Dagger(bi)
+            window = self._b[i:i + self.window_length]
+            monomials.append([bj * bi for bi in window for bj in window])
+            monomials.append(
+                [Dagger(bj) * bi for bi in window for bj in window])
+            monomials[-1].extend([bj * Dagger(bi)
                                   for bi in window for bj in window])
-            monomials.append([Dagger(bj)*Dagger(bi)
+            monomials.append([Dagger(bj) * Dagger(bi)
                               for bi in window for bj in window])
         return monomials
 
@@ -657,18 +665,18 @@ class BoseHubbardModel(SecondQuantizedModel):
                  str(self._lattice_width) + "_mu=" + str(self.mu) + "_t=" + \
                  str(self.t)
         if self.n is not None:
-            suffix += "_n="+str(self.n)
+            suffix += "_n=" + str(self.n)
         if self.nmax is not None:
-            suffix += "_nmax="+str(self.nmax)
+            suffix += "_nmax=" + str(self.nmax)
         if self.nmin is not None:
-            suffix += "_nmin="+str(self.nmin)
+            suffix += "_nmin=" + str(self.nmin)
         if self.localNmax is not None:
-            suffix += "_localnmax="+str(self.localNmax)
+            suffix += "_localnmax=" + str(self.localNmax)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
-        suffix += "_level="+str(self._level)
+        suffix += "_level=" + str(self._level)
         return suffix
 
 
@@ -680,14 +688,16 @@ class FermiHubbardModel(SecondQuantizedModel):
         SecondQuantizedModel.__init__(self, lattice_length, lattice_width,
                                       solver, outputDir, periodic,
                                       window_length, removeequalities, parallel=parallel)
-        self._fu = generate_variables('fu', lattice_length * lattice_width, commutative=False)
-        self._fd = generate_variables('fd', lattice_length * lattice_width, commutative=False)
+        self._fu = generate_variables(
+            'fu', lattice_length * lattice_width, commutative=False)
+        self._fd = generate_variables(
+            'fd', lattice_length * lattice_width, commutative=False)
         self._b = flatten([self._fu, self._fd])
         self.mu, self.t, self.h, self.U = 0, 0, 0, 0
 
     def createHamiltonian(self):
         if self._periodic == -1:
-            raise Exception("Anti periodic not implemented!")
+            raise NotImplementedError("Anti periodic not implemented!")
             # fuext = self._fu + [-fi for fi in self._fu]
             # fdext = self._fd + [-fi for fi in self._fd]
         else:
@@ -698,25 +708,27 @@ class FermiHubbardModel(SecondQuantizedModel):
         V = self.getSize()
         if self.t != 0:
             for j in range(V):
-                for k in get_neighbors(j, self.getLength(), width=self.getWidth(), periodic=self._periodic):
-                    hamiltonian += -self.t*Dagger(fuext[j])*fuext[k]\
-                                   -self.t*Dagger(fuext[k])*fuext[j]
-                    hamiltonian += -self.t*Dagger(fdext[j])*fdext[k]\
-                                   -self.t*Dagger(fdext[k])*fdext[j]
+                for k in get_neighbors(j, self.getLength(),
+                                       width=self.getWidth(),
+                                       periodic=self._periodic):
+                    hamiltonian += -self.t * Dagger(fuext[j]) * fuext[k]\
+                                   - self.t * Dagger(fuext[k]) * fuext[j]
+                    hamiltonian += -self.t * Dagger(fdext[j]) * fdext[k]\
+                                   - self.t * Dagger(fdext[k]) * fdext[j]
         if self.U != 0:
             for j in range(V):
-                hamiltonian += self.U * (Dagger(fuext[j])*Dagger(fdext[j]) *
-                                         fdext[j]*fuext[j])
+                hamiltonian += self.U * (Dagger(fuext[j]) * Dagger(fdext[j]) *
+                                         fdext[j] * fuext[j])
 
         if self.h != 0:
             for j in range(V):
-                hamiltonian += -self.h/2*(Dagger(fuext[j])*fuext[j] -
-                                          Dagger(fdext[j])*fdext[j])
+                hamiltonian += -self.h / 2 * (Dagger(fuext[j]) * fuext[j] -
+                                              Dagger(fdext[j]) * fdext[j])
 
         if self.mu != 0:
             for j in range(V):
-                hamiltonian += -self.mu*(Dagger(fuext[j])*fuext[j] +
-                                         Dagger(fdext[j])*fdext[j])
+                hamiltonian += -self.mu * (Dagger(fuext[j]) * fuext[j] +
+                                           Dagger(fdext[j]) * fdext[j])
 
         return hamiltonian
 
@@ -726,31 +738,33 @@ class FermiHubbardModel(SecondQuantizedModel):
     def createMonomials(self):
         monomials = []
         for i in range(self.getSize() - self.window_length + 1):
-            window = self._b[i:i+self.window_length]
-            window.extend(self._b[self.getSize()+i:
-                                  self.getSize()+i+self.window_length])
+            window = self._b[i:i + self.window_length]
+            window.extend(self._b[self.getSize() + i:
+                                  self.getSize() + i + self.window_length])
             monomials.append([ci for ci in window])
             monomials[-1].extend([Dagger(ci) for ci in window])
-            monomials.append([cj*ci for ci in window for cj in window])
-            monomials.append([Dagger(cj)*ci for ci in window for cj in window])
-            monomials[-1].extend([cj*Dagger(ci)
+            monomials.append([cj * ci for ci in window for cj in window])
+            monomials.append(
+                [Dagger(cj) * ci for ci in window for cj in window])
+            monomials[-1].extend([cj * Dagger(ci)
                                   for ci in window for cj in window])
-            monomials.append([Dagger(cj)*Dagger(ci)
+            monomials.append([Dagger(cj) * Dagger(ci)
                               for ci in window for cj in window])
         return monomials
 
     def getMagnetization(self):
-        s = 0.5*(sum((Dagger(fu)*fu) for fu in self._fu) -
-                 sum((Dagger(fd)*fd) for fd in self._fd))
+        s = 0.5 * (sum((Dagger(fu) * fu) for fu in self._fu) -
+                   sum((Dagger(fd) * fd) for fd in self._fd))
         return self.expectationValue(s)
 
     def getNumberOfDoubleOccupiedSites(self):
-        p = sum((Dagger(fd)*fd*Dagger(fu)*fu) for fu,fd in zip(self._fu,self._fd))
+        p = sum((Dagger(fd) * fd * Dagger(fu) * fu)
+                for fu, fd in zip(self._fu, self._fd))
         return self.expectationValue(p)
 
     def getParticleNumber(self):
-        N = (sum((Dagger(fu)*fu) for fu in self._fu) +
-             sum((Dagger(fd)*fd) for fd in self._fd))
+        N = (sum((Dagger(fu) * fu) for fu in self._fu) +
+             sum((Dagger(fd) * fd) for fd in self._fd))
         return self.expectationValue(N)
 
     def setParameters(self, **kwargs):
@@ -771,20 +785,20 @@ class FermiHubbardModel(SecondQuantizedModel):
         suffix = "_lat=" + str(self._lattice_length) + "x" + \
                  str(self._lattice_width) + "_periodic=" + str(self._periodic)\
                  + "_mu=" + str(self.mu) + "_t=" + str(self.t) + "_h=" + \
-                 str(self.h) + "_U="+str(self.U)
+                 str(self.h) + "_U=" + str(self.U)
         if self.n is not None:
-            suffix += "_n="+str(self.n)
+            suffix += "_n=" + str(self.n)
         if self.nmax is not None:
-            suffix += "_nmax="+str(self.nmax)
+            suffix += "_nmax=" + str(self.nmax)
         if self.nmin is not None:
-            suffix += "_nmin="+str(self.nmin)
+            suffix += "_nmin=" + str(self.nmin)
         if self.localNmax is not None:
-            suffix += "_localnmax="+str(self.localNmax)
+            suffix += "_localnmax=" + str(self.localNmax)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
-        suffix += "_level="+str(self._level)
+        suffix += "_level=" + str(self._level)
         return suffix
 
     def getPhysicalQuantities(self):
@@ -792,8 +806,8 @@ class FermiHubbardModel(SecondQuantizedModel):
                 "/dual": [self.getPrimal()],
                 "/getParticleNumber": [self.getParticleNumber()],
                 "/magnetization": [self.getMagnetization()],
-                "/getNumberOfDoubleOccupiedSites": [self.getNumberOfDoubleOccupiedSites()]
-        }
+                "/getNumberOfDoubleOccupiedSites":
+                    [self.getNumberOfDoubleOccupiedSites()]}
 
 
 class LongRangeQuadraticFermiModel(FermiHubbardModel):
@@ -811,7 +825,7 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
 
     def createHamiltonian(self):
         if self._lattice_width != 1:
-            raise Exception("Higher dimension not implemented!")
+            raise NotImplementedError("Higher dimension not implemented!")
 
         if self._periodic or self._periodic == 1:
             bext = self._b + [bi for bi in self._b]
@@ -823,14 +837,15 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
         hamiltonian = 0
         for r, br in enumerate(self._b[:self._lattice_length]):
             if self.mu != 0:
-                hamiltonian += -self.mu*(Dagger(br)*br-1/2)
+                hamiltonian += -self.mu * (Dagger(br) * br - 1 / 2)
             for s in get_neighbors(r, len(bext), self._lattice_width):
-                hamiltonian += -self.t*(Dagger(br)*bext[s]+Dagger(bext[s])*br)
+                hamiltonian += -self.t * \
+                    (Dagger(br) * bext[s] + Dagger(bext[s]) * br)
             for d in range(1, self._lattice_length):
                 for s in get_next_neighbors(r, len(bext), self._lattice_width):
                     hamiltonian += self.Delta * \
                         math.pow(d, -self.alpha) * (br * bext[s] +
-                                                    Dagger(bext[s])*Dagger(br))
+                                                    Dagger(bext[s]) * Dagger(br))
         return hamiltonian
 
     def setParameters(self, **kwargs):
@@ -851,20 +866,20 @@ class LongRangeQuadraticFermiModel(FermiHubbardModel):
         suffix = "_lat=" + str(self._lattice_length) + "x" + \
                  str(self._lattice_width) + "_periodic=" + str(self._periodic)\
                  + "_mu=" + str(self.mu) + "_t=" + str(self.t) + "_alpha=" + \
-                 str(self.alpha) + "_Delta="+str(self.Delta)
+                 str(self.alpha) + "_Delta=" + str(self.Delta)
         if self.n is not None:
-            suffix += "_n="+str(self.n)
+            suffix += "_n=" + str(self.n)
         if self.nmax is not None:
-            suffix += "_nmax="+str(self.nmax)
+            suffix += "_nmax=" + str(self.nmax)
         if self.nmin is not None:
-            suffix += "_nmin="+str(self.nmin)
+            suffix += "_nmin=" + str(self.nmin)
         if self.localNmax is not None:
-            suffix += "_localnmax="+str(self.localNmax)
+            suffix += "_localnmax=" + str(self.localNmax)
         if self._periodic:
             suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self.getSize():
             suffix += "_window=" + str(self.window_length)
-        suffix += "_level="+str(self._level)
+        suffix += "_level=" + str(self._level)
         return suffix
 
 

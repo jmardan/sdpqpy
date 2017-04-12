@@ -6,45 +6,29 @@ obtained from the SDP numerics.
 @author: Christian Gogolin, Peter Wittek
 """
 from __future__ import print_function, division
-import sys
-import cmath
-import csv
-import math
+from abc import ABCMeta
+import functools as ft
+import itertools as it
+import multiprocessing
 import os
 import pickle
+import sys
 import time
-from abc import ABCMeta, abstractmethod
-
-import sympy
-from sympy import adjoint, conjugate, S, Symbol, Pow, Number, expand, I, Matrix, Lambda, Mul, Add, Integer, Float
-from sympy.core.numbers import NegativeOne
-from sympy.physics.quantum import Dagger
-from sympy.physics.quantum.operator import Operator
-from ncpol2sdpa import RdmHierarchy, get_neighbors, get_next_neighbors, \
-                       generate_variables, bosonic_constraints, flatten, \
-                       fermionic_constraints, SdpRelaxation
-
-import multiprocessing, logging
-
-from functools import partial
+from ncpol2sdpa import flatten, get_neighbors, get_next_neighbors
 import numpy as np
-import scipy
-import itertools as it
-import functools as ft
 from scipy.sparse.linalg import eigsh
 import scipy.sparse as sps
 from scipy.special import binom
+from sympy import Pow, Mul, Add, Integer, Float
+from sympy.core.numbers import NegativeOne
+from sympy.physics.quantum import Dagger
+from sympy.physics.quantum.operator import Operator
+from .tools import unique_permutations, write_array
 
-def write_array(filename, array):
-    file_ = open(filename, 'w')
-    writer = csv.writer(file_)
-    writer.writerow(array)
-    file_.close()
-    
 
 class EDLatticeModel():
     __metaclass__ = ABCMeta
-        
+
     def __init__(self, lattice_length, lattice_width, outputDir,
                  periodic=0, window_length=0):
         self._lattice_length = lattice_length
@@ -56,7 +40,8 @@ class EDLatticeModel():
             self.window_length = lattice_length * lattice_width
         else:
             if self._lattice_width != 1:
-                raise Exception("Windowed models in more than 1D not implemented!")
+                raise NotImplementedError("Windowed models in more than 1D not"
+                                          " implemented!")
             self.window_length = window_length
         self.n = None
         self.energy = None
@@ -88,28 +73,28 @@ class EDLatticeModel():
 
     def invalidateSolution(self):
         """Invalidates the stored solution. This function is mainly for
-        intermal use and is caled for example when the paramters of the system 
+        intermal use and is caled for example when the paramters of the system
         are changed.
         """
         self.energy = None
         self.groundstate = None
-        
+
     def setConstraints(self, **kwargs):
         """Sets the specifide constaints. If a constraint was not previously
         set or the value of it was changed it invalidates the Hamiltonian and
         the Hilbert space.
         """
         if "localNmax" in kwargs and self.localNmax != kwargs.get("localNmax"):
-            raise Exception("Not implemented!")
+            raise NotImplementedError("Not implemented!")
         if "n" in kwargs and self.n != kwargs.get("n"):
             self.invalidateHilbertSpace()
             self.n = int(kwargs.get("n"))
-            
+
         if "nmin" in kwargs and self.nmin != kwargs.get("nmin"):
-            raise Exception("Not implemented!")
+            raise NotImplementedError("Not implemented!")
         if "nmax" in kwargs and self.nmax != kwargs.get("nmax"):
-            raise Exception("Not implemented!")
-        
+            raise NotImplementedError("Not implemented!")
+
     def getHamiltonian(self):
         """Cached getter mehtod that calls createHamiltonian() if necessary.
         """
@@ -151,14 +136,14 @@ class EDLatticeModel():
         """Returns the length of the system.
         """
         return self._lattice_width
-    
+
     def solve(self):
         try:
             print('trying to load pickled ED solution')
             with open(self._outputDir + "/" +"edEnergy" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 self.energy = pickle.load(handle)
-            with open(self._outputDir + "/" +"edGreoundState" +
+            with open(self._outputDir + "/" + "edGreoundState" +
                       self.getSuffix() + ".pickle", 'rb') as handle:
                 self.groundstate = pickle.load(handle)
             print("ground state and ground state energy succesfully unpickled")
@@ -172,29 +157,34 @@ class EDLatticeModel():
             else:
                 try:
                     time0 = time.time()
-                    self.energy, self.groundstate = eigsh(H, 1, which="SA", maxiter=1000, tol=1E-5)
-                    print("Ground state of Hamiltonian of dimension "+str(len(H))+" found in", time.time()-time0, "seconds")
+                    self.energy, self.groundstate = eigsh(
+                        H, 1, which="SA", maxiter=1000, tol=1E-5)
+                    print("Ground state of Hamiltonian of dimension " +
+                          str(len(H)) + " found in", time.time() - time0,
+                          "seconds")
 
                     if self._outputDir is not None:
                         if not os.path.isdir(self._outputDir):
                             os.mkdir(self._outputDir)
-                        with open(self._outputDir + "/" +"edEnergy" +
+                        with open(self._outputDir + "/" + "edEnergy" +
                                   self.getSuffix() + ".pickle", 'wb') as handle:
                             pickle.dump(self.energy, handle)
-                        with open(self._outputDir + "/" +"edGreoundState" +
+                        with open(self._outputDir + "/" + "edGreoundState" +
                                   self.getSuffix() + ".pickle", 'wb') as handle:
                             pickle.dump(self.groundstate, handle)
                 except (KeyboardInterrupt, SystemExit):
-                    raise 
+                    raise
                 except:
-                    print("paramters="+self.getSuffix())
-                    print("ERROR finding the ground state of H="+str(H)+" in Hilbert space "+str(self.getHilbertSpace()))
-                    self.energy, self.groundstate = -1, [1/self.dimh] * self.dimh
+                    print("paramters=" + self.getSuffix())
+                    print("ERROR finding the ground state of H=" + str(H) +
+                          " in Hilbert space " + str(self.getHilbertSpace()))
+                    self.energy, self.groundstate = - \
+                        1, [1 / self.dimh] * self.dimh
                     raise
 
     def getPrimal(self):
         return self.getEnergy()
-                
+
     def getEnergy(self):
         if self.energy is None:
             self.solve()
@@ -345,42 +335,46 @@ class EDFermionicLatticeModel(EDLatticeModel):
             hdict = self.getHdictFull()
             col = hdict[tuple(vec)]
             upliftedgroundstate[col] = self.groundstate[row]
-        
+
         print("generating xmat entries")
         time0 = time.time()
         monomialvec = self.getMonomialVector(variables, monomials)
         with multiprocessing.Pool() as pool:
-            m = pool.map_async(partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF) #this makes keyboard interrup work, see: http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
+            # this makes keyboard interrupt work, see:
+            # http://stackoverflow.com/questions/1408356/keyboard-interrupts-with-pythons-multiprocessing-pool
+            m = pool.map_async(
+                ft.partial(npdotinverted, upliftedgroundstate), monomialvec).get(0xFFFF)
             pool.close()
             pool.join()
-        
+
         output = np.empty([len(m), len(m)])
         with multiprocessing.Pool() as pool2:
             m2 = pool2.imap(npstardot, it.product(m, repeat=2))
             for i, out in enumerate(m2, 1):
-                row = (i-1) % len(m)
-                col = (i-1 - row)/len(m)
+                row = (i - 1) % len(m)
+                col = (i - 1 - row) / len(m)
                 if row >= col:
                     output[row, col] = output[col, row] = out
-                    sys.stdout.write("\r\x1b[Kprocessed "+str(i)+" xmat entries of "+str(len(m)*len(m))+" in "+str(time.time()-time0)+" seconds ")
+                    sys.stdout.write("\r\x1b[Kprocessed " + str(i) + " xmat entries of " + str(
+                        len(m) * len(m)) + " in " + str(time.time() - time0) + " seconds ")
                     sys.stdout.flush()
             pool2.close()
             pool2.join()
-            
+
         print("done")
         return np.array(output, dtype=float)
-        
+
     def getSuffix(self):
         suffix = "_lat=" + str(self._lattice_length) + "x" + \
                  str(self._lattice_width) + "_periodic=" + str(self._periodic)
         if self.n is not None:
-            suffix += "_n="+str(self.n)
+            suffix += "_n=" + str(self.n)
         if self.nmax is not None:
-            suffix += "_nmax="+str(self.nmax)
+            suffix += "_nmax=" + str(self.nmax)
         if self.nmin is not None:
-            suffix += "_nmin="+str(self.nmin)
+            suffix += "_nmin=" + str(self.nmin)
         if self.localNmax is not None:
-            suffix += "_localnmax="+str(self.localNmax)
+            suffix += "_localnmax=" + str(self.localNmax)
         # if self._periodic:
         #     suffix += "_periodic=" + str(self._periodic)
         if self.window_length != self._lattice_length * self._lattice_width:
@@ -403,7 +397,7 @@ class EDFermionicLatticeModel(EDLatticeModel):
             print("generating annihiliation operators")
             self.annihiliationOperators = [self.createAnnihiliationOperator(j) for j in range(0, spin_multiplicity*V)]
         return self.annihiliationOperators
-    
+
     def createAnnihiliationOperator(self, j):
         if self.spin == 0.5:
             spin_multiplicity = 2
@@ -419,14 +413,14 @@ class EDFermionicLatticeModel(EDLatticeModel):
                 newvec = list(vec)
                 newvec[j] = 0
                 col = self.getHdictFull()[tuple(newvec)]
-                a[col,row] = pow(-1, sum(vec[0:j]))
+                a[col, row] = pow(-1, sum(vec[0:j]))
         return a
 
     def getHdictFull(self):
         if self.hdictfull is None:
             self.hdictfull = self.createHdictFull()
         return self.hdictfull
-    
+
     def createHdictFull(self):
         if self.spin == 0.5:
             spin_multiplicity = 2
@@ -436,7 +430,8 @@ class EDFermionicLatticeModel(EDLatticeModel):
             raise Exception("Only spin 1/2 and spin 0 implemented!")
  
         V = self.getSize()
-        #reverse lookup table for the elements of the hilbet space to efficiently generate the annihilation operators
+        # reverse lookup table for the elements of the hilbet space to
+        # efficiently generate the annihilation operators
         print("generating lookup table")
         hdict = {}
         for row, vec in enumerate(it.product([0, 1], repeat = spin_multiplicity*V)):
@@ -496,7 +491,6 @@ class EDFermionicLatticeModel(EDLatticeModel):
                 
             return sign, tuple(newvec)
 
-            
     def projectorOntoHilbertSpace(self):
         if self.spin == 0.5:
             spin_multiplicity = 2
@@ -814,7 +808,9 @@ class EDKitaevChain(EDFermionicLatticeModel):
     
         
 def expressionToMatrix(expr, variables=None, matrices=None):
-    """Converts sympy expression expr formulated in terms of the variables variables to a numpy array, by replacing every occurance of a variable in variables with the corresponding numpy matrix/array in matrices.
+    """Converts sympy expression expr formulated in terms of the variables
+    to a numpy array, by replacing every occurance of a variable in variables
+    with the corresponding numpy matrix/array in matrices.
     """
 
     def evalmonomial(expr, dictionary):
@@ -827,29 +823,36 @@ def expressionToMatrix(expr, variables=None, matrices=None):
         elif expr.func == Dagger:
             return evalmonomial(expr.args[0], dictionary).conj().T
         elif expr.func == Pow:
-            return np.linalg.matrix_power(evalmonomial(expr.args[0],dictionary),int(expr.args[1]))
+            return np.linalg.matrix_power(evalmonomial(expr.args[0], dictionary),
+                                          int(expr.args[1]))
         elif expr.func == Mul:
-            return ft.reduce(np.dot, (evalmonomial(arg, dictionary) for arg in expr.args))
+            return ft.reduce(np.dot, (evalmonomial(arg, dictionary)
+                                      for arg in expr.args))
         elif expr.func == Add:
-            return ft.reduce(np.add, (evalmonomial(arg, dictionary) for arg in expr.args))
+            return ft.reduce(np.add, (evalmonomial(arg, dictionary)
+                                      for arg in expr.args))
         else:
-            raise Exception("unknown sympy func: "+str(expr.func))
-    
+            raise ValueError("unknown sympy func: " + str(expr.func))
+
     dictionary = dict(zip(variables, matrices))
     try:
         matrix = evalmonomial(expr, dictionary)
         return matrix
     except:
-        print("\nproblem while processing expr="+str(expr)+"wich consists of:")
+        print("\nproblem while processing expr=" +
+              str(expr) + "wich consists of:")
+
         def printtree(expr, level):
-            print("level",level,":", expr, "of type ", expr.func)
+            print("level", level, ":", expr, "of type ", expr.func)
             for arg in expr.args:
-                printtree(arg, level+1)
+                printtree(arg, level + 1)
         printtree(expr, 0)
         raise
 
+
 def npdotinverted(b, a):
-    return np.dot(a,b)
+    return np.dot(a, b)
+
 
 def npstardot(ab):
-    return np.dot(ab[0],ab[1])
+    return np.dot(ab[0], ab[1])
