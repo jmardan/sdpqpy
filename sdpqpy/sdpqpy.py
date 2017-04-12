@@ -379,7 +379,7 @@ class SecondQuantizedModel(LatticeModel):
         if self.n is not None:
             # momentsubstitutions[Dagger(self._b[0])*self._b[0]] = self.n-sum(Dagger(br)*br for br in self._b[1:])
             momentequalities.append(self.n-sum(Dagger(br)*br for br in self._b))
-            for fr in self._b[1:]:
+            for fr in self._b:
                 op1 = Dagger(fr)*fr
                 # momentsubstitutions[op1*Dagger(self._b[0])*self._b[0]] = (op1*self.n-op1*sum(Dagger(br)*br for br in self._b[1:])).expand()
                 momentequalities.append((op1*self.n-op1*sum(Dagger(br)*br for br in self._b)))
