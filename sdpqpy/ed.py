@@ -6,7 +6,7 @@ obtained from the SDP numerics.
 @author: Christian Gogolin, Peter Wittek
 """
 from __future__ import print_function, division
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 import functools as ft
 import itertools as it
 import multiprocessing
@@ -304,7 +304,7 @@ class EDFermionicLatticeModel(EDLatticeModel):
             return np.dot(Mdiag, [c * np.conj(c) for c in self.groundstate])
         elif self.spin == 0:
             return 0;
-        elif:
+        else:
             raise Exception("Only spin 1/2 and spin 0 implemented!")
 
     def getNumberOfDoubleOccupiedSites(self):
@@ -313,9 +313,10 @@ class EDFermionicLatticeModel(EDLatticeModel):
 
         if self.spin == 0.5:
             Pdiag = [np.dot(vec[:self.getSize()], vec[self.getSize():]) for vec in self.getHilbertSpace()]
-            return np.dot(Pdiag, [c * np.conj(c) for c in self.groundstate])          elif self.spin == 0:
+            return np.dot(Pdiag, [c * np.conj(c) for c in self.groundstate])
+        elif self.spin == 0:
             return 0;
-        elif:
+        else:
             raise Exception("Only spin 1/2 and spin 0 implemented!")  
 
     def getXMat(self, variables, monomials):
@@ -441,7 +442,7 @@ class EDFermionicLatticeModel(EDLatticeModel):
     def hop(self, j, k, vec, length=0, width=1, periodic=0):
         """Returns the vector and sign resulting from hopping from j to k.
         """
-        act(self, j, k, vec, 0, 1, length, width, periodic):
+        return act(self, j, k, vec, 0, 1, length, width, periodic)
 
         
     def act(self, j, k, vec, create_j, create_k, length=0, width=1, periodic=0):

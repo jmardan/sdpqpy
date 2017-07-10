@@ -420,7 +420,7 @@ class SecondQuantizedModel(LatticeModel):
             sdpRelaxation.get_relaxation(self._level,
                                          equalities=equalities,
                                          momentequalities=momentequalities,
-                                         momentsubstitutions=momentsubstitutions,
+                                         # momentsubstitutions=momentsubstitutions,
                                          inequalities=inequalities,
                                          momentinequalities=momentinequalities,
                                          substitutions=self.getSubstitutions(),
